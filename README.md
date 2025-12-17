@@ -1,1 +1,0 @@
-# thero-of-computing-simulator
