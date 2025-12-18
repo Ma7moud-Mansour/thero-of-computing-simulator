@@ -1,0 +1,43 @@
+body {
+    margin: 0;
+    background: #1e1e1e;
+    color: white;
+    font-family: "Segoe UI", Arial;
+  }
+  
+  .app {
+    display: flex;
+    height: 100vh;
+  }
+  
+  .panel {
+    width: 300px;
+    padding: 20px;
+    background: #252526;
+    box-shadow: 2px 0 10px black;
+  }
+  
+  input, button {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 6px;
+    border: none;
+  }
+  
+  button {
+    background: #007acc;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  
+  button:hover {
+    background: #005f99;
+  }
+  
+  svg {
+    flex: 1;
+    background: #1e1e1e;
+  }
+  

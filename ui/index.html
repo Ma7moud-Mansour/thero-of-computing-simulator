@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Automata Visualizer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+    <div class="panel">
+        <h2>ToC Visualizer</h2>
+        <input id="regex" placeholder="Regex">
+        <input id="string" placeholder="Input String">
+      
+        <button onclick="buildNFA()">NFA</button>
+        <button onclick="simulateNFA()">Simulate NFA</button>
+        <button onclick="buildDFA()">DFA</button>
+        <button onclick="simulateTM()">TM</button>
+      </div>
+      
+      <svg id="canvas" width="1000" height="700"></svg>
+      
+
+  <svg id="canvas" width="900" height="600"></svg>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
