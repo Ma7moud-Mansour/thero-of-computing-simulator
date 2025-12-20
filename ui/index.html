@@ -1,29 +1,49 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
+  <meta charset="UTF-8" />
   <title>Automata Visualizer</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
 
-<div class="app">
+  <div class="app">
     <div class="panel">
-        <h2>ToC Visualizer</h2>
-        <input id="regex" placeholder="Regex">
-        <input id="string" placeholder="Input String">
-      
-        <button onclick="buildNFA()">NFA</button>
-        <button onclick="simulateNFA()">Simulate NFA</button>
-        <button onclick="buildDFA()">DFA</button>
-        <button onclick="simulateTM()">TM</button>
+      <h2>Theory of Computing</h2>
+
+      <div class="control-group">
+        <input id="regex" placeholder="Regex (e.g. (a|b)*abb)" />
+        <button onclick="buildNFA()">Build NFA</button>
       </div>
-      
-      <svg id="canvas" width="1000" height="700"></svg>
-      
 
-  <svg id="canvas" width="900" height="600"></svg>
-</div>
+      <div class="control-group" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 20px;">
+        <h3>Simulation</h3>
+        <input id="inputString" placeholder="Input String (e.g. abb)" />
+        <button onclick="simulate()">Simulate</button>
 
-<script src="app.js"></script>
+        <div class="playback-controls" style="margin-top: 10px;">
+          <button onclick="prevStep()">Previous</button>
+          <button onclick="nextStep()">Next</button>
+          <div id="status" style="margin-left: 10px; font-family: monospace; color: #ddd; display: inline-block;"></div>
+        </div>
+
+        <div style="margin-top: 15px; font-size: 0.9em; color: #aaa; border-left: 2px solid #555; padding-left: 10px;">
+          <strong>Note:</strong> In an NFA, the machine can be in multiple states at once (shown in Blue).
+          The simulation highlights all reachable states for the current input.
+        </div>
+      </div>
+
+      <div class="hint">
+        API: http://127.0.0.1:8000
+      </div>
+    </div>
+
+    <svg id="canvas" width="1000" height="650"></svg>
+  </div>
+
+  <script src="app.js"></script>
 </body>
+
 </html>

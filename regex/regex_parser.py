@@ -7,7 +7,7 @@ def insert_concatenation(regex):
 
         if i + 1 < len(regex):
             c2 = regex[i + 1]
-            if (c1 not in "|(" and
-                c2 not in "|)*"):
+            if (c1 not in "|(." and
+                c2 not in "|)*."):
                 result += "."
     return result
