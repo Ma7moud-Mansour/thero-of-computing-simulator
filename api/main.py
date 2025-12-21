@@ -153,17 +153,12 @@ def build_dfa(data: regexInput):
     # Note: We might want to normalize NFA before converting? 
     # Usually doesn't matter for DFA structure, but for consistency let's do it.
     normalize_nfa(nfa) 
+    
+    from automata.subset_construction import nfa_to_dfa
     dfa = nfa_to_dfa(nfa)
 
-    return {
-        "states": list(dfa.states),
-        "start": dfa.start_state,
-        "accept": list(dfa.accept_states),
-        "transitions": [
-            {"from": s, "symbol": a, "to": t}
-            for (s, a), t in dfa.transitions.items()
-        ]
-    }
+    return dfa
+
 
 @app.post("/simulate/tm")
 def simulate_tm_api(data: SimulateInput):

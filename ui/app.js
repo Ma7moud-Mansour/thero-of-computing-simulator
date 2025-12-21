@@ -16,14 +16,16 @@ const API_BASE = "http://127.0.0.1:8000";
 class LayoutEngine {
   constructor() {
     this.config = {
-      xSpacing: 180,
-      ySpacing: 100,
+      xSpacing: 250,
+      ySpacing: 180,
       startX: 150,
       centerY: 400
     };
   }
 
-  compute(nfa) {
+  compute(nfa, options = {}) {
+    const config = { ...this.config, ...options };
+
     // Step 1: Layer Assignment (BFS)
     const layers = {};
     const ranks = {};
@@ -70,13 +72,13 @@ class LayoutEngine {
     // Re-center layers vertically
     Object.keys(layers).forEach(rank => {
       const states = layers[rank];
-      const height = (states.length - 1) * this.config.ySpacing;
-      const startY = this.config.centerY - (height / 2);
+      const height = (states.length - 1) * config.ySpacing;
+      const startY = config.centerY - (height / 2);
 
       states.forEach((s, i) => {
         positions[s] = {
-          x: this.config.startX + (rank * this.config.xSpacing),
-          y: startY + (i * this.config.ySpacing),
+          x: config.startX + (rank * config.xSpacing),
+          y: startY + (i * config.ySpacing),
           rank: parseInt(rank),
           layerIndex: i
         };
@@ -451,6 +453,33 @@ class Simulator {
     }
   }
 
+  async loadDFA(regex) {
+    try {
+      document.getElementById("statusText").innerText = "Building DFA...";
+      const res = await fetch(`${API_BASE}/dfa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regex })
+      });
+      const dfa = await res.json();
+
+      // Normalize DFA structure if needed, but we aligned backend to match NFA keys
+      this.nfaData = dfa;
+
+      // Recompute layout for DFA WITH EXTRA SPACING
+      const layout = this.layoutEngine.compute(this.nfaData, { xSpacing: 350, ySpacing: 250 });
+      this.renderer.draw(this.nfaData, layout);
+
+      this.resetSimulation();
+      document.getElementById("statusText").innerText = "DFA Ready";
+      document.getElementById("stepCounter").innerText = "Deterministic Finite Automaton";
+
+    } catch (e) {
+      console.error(e);
+      alert("Error building DFA");
+    }
+  }
+
   resetSimulation() {
     this.history = [];
     this.currentStep = 0;
@@ -468,6 +497,11 @@ simulator = new Simulator();
 window.buildNFA = () => {
   const regex = document.getElementById("regex").value;
   simulator.loadNFA(regex);
+};
+
+window.buildDFA = () => {
+  const regex = document.getElementById("regex").value;
+  simulator.loadDFA(regex);
 };
 
 window.simulate = () => {
