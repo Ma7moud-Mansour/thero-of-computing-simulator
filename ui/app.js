@@ -183,10 +183,11 @@ class Renderer {
 
       // Calculate start arrow position relative to boundary
       // Node is at pos.x, radius 20. Start arrow should end at pos.x - 20
-      const startX = pos.x - 50;
-      const endX = pos.x - 22; // Slight gap for marker
+      // We simulate a source point 60px to the left of center
+      const sourcePt = { x: pos.x - 60, y: pos.y };
+      const boundaryPt = this.getBoundaryPoint(pos, sourcePt, 22); // 20 + 2 padding
 
-      arrow.setAttribute("d", `M ${startX} ${pos.y} L ${endX} ${pos.y}`);
+      arrow.setAttribute("d", `M ${sourcePt.x} ${sourcePt.y} L ${boundaryPt.x} ${boundaryPt.y}`);
       arrow.setAttribute("stroke", "#4ec9b0");
       arrow.setAttribute("stroke-width", "3");
       arrow.setAttribute("marker-end", "url(#arrow-active)");
@@ -245,6 +246,17 @@ class Renderer {
       x: center.x + dx * scale,
       y: center.y + dy * scale
     };
+  }
+
+  intersectLineLine(p1, p2, p3, p4) {
+    // Check if line segment p1-p2 intersects p3-p4
+    const det = (p2.x - p1.x) * (p4.y - p3.y) - (p4.x - p3.x) * (p2.y - p1.y);
+    if (det === 0) return false;
+
+    const lambda = ((p4.y - p3.y) * (p4.x - p1.x) + (p3.x - p4.x) * (p4.y - p1.y)) / det;
+    const gamma = ((p1.y - p2.y) * (p4.x - p1.x) + (p2.x - p1.x) * (p4.y - p1.y)) / det;
+
+    return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
   }
 
   drawEdges(nfa, positions, ranks) {
@@ -371,12 +383,36 @@ class Renderer {
 
       // Base Logic: 
       // If single connection (groupSize=1) AND not bidirectional -> Straight Line
-      // Else -> Quadratic Curve
+      // UNLESS: Collision detected
 
-      const isSimple = groupSize === 1 && !isReverse;
+      let isSimple = groupSize === 1 && !isReverse;
 
       const start = this.getBoundaryPoint(a, b, RADIUS);
       const end = this.getBoundaryPoint(b, a, RADIUS);
+
+      // Check collisions to force curve
+      if (isSimple) {
+        // Iterate other edges
+        for (let edge of this.edgeMap) {
+          // Self check (skip if not created yet or same)
+          if (!edge.dom) continue;
+
+          // Skip connected edges (sharing ends)
+          if (edge.from === fromId || edge.from === toId || edge.to === fromId || edge.to === toId) continue;
+
+          // Get edge positions
+          const otherA = this.layout.positions[edge.from];
+          const otherB = this.layout.positions[edge.to];
+
+          // Only check Line-Line intersection (ignoring curve-line for perf/complexity)
+          // Ideally we'd check path bounding boxes if we want perfection.
+          // Here: Check if our straight line crosses their straight line (approx)
+          if (this.intersectLineLine(a, b, otherA, otherB)) {
+            isSimple = false;
+            break;
+          }
+        }
+      }
 
       if (isSimple) {
         pathD = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
@@ -393,10 +429,13 @@ class Renderer {
         // Base offset for bidirectional separation
         const biDirOffset = isReverse ? 30 : 0;
 
+        // If we forced curve due to collision but no other group reasons, ensure min curve
+        const baseCurve = (!isReverse && groupSize === 1) ? 40 : 0;
+
         // Multi-edge spread
         const spread = (index - (groupSize - 1) / 2) * 20;
 
-        const totalCurve = biDirOffset + spread;
+        const totalCurve = biDirOffset + spread + baseCurve;
 
         // Normal vector
         const len = Math.sqrt(dx * dx + dy * dy);
@@ -484,7 +523,14 @@ class Renderer {
       // 1. Update Start Arrow (if exists)
       const arrow = g.querySelector("path[marker-end]");
       if (arrow) {
-        arrow.setAttribute("d", `M ${newX - 50} ${newY} L ${newX - 22} ${newY}`);
+        // Same logic as create: source is (newX - 60, newY)
+        const sourcePt = { x: newX - 60, y: newY };
+        // The node center is (newX, newY). 
+        // getBoundaryPoint(center, target, radius)
+        // We want point on boundary of (newX, newY) towards sourcePt
+        const boundaryPt = this.getBoundaryPoint({ x: newX, y: newY }, sourcePt, 22);
+
+        arrow.setAttribute("d", `M ${sourcePt.x} ${sourcePt.y} L ${boundaryPt.x} ${boundaryPt.y}`);
       }
 
       // 2. Update Circles
