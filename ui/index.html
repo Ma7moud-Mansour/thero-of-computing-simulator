@@ -173,6 +173,7 @@
       <input type="text" id="regex" value="(a|b)*ab" placeholder="e.g. (a|b)*ab">
       <button onclick="buildNFA()">Construct NFA</button>
       <button class="secondary" onclick="buildDFA()">Convert to DFA</button>
+      <button class="secondary" onclick="buildTM()">Convert to TM</button>
     </div>
 
     <hr style="border: 0; border-top: 1px solid #444; width: 100%;">
@@ -197,6 +198,23 @@
   <div class="main-view" id="viewport">
     <svg id="canvas" width="2000" height="2000"></svg>
     <div class="tooltip" id="tooltip"></div>
+
+    <!-- Tape Visualization -->
+    <div id="tape-container" style="
+        position: absolute; 
+        bottom: 20px; 
+        left: 50%; 
+        transform: translateX(-50%);
+        display: none; 
+        background: #252526; 
+        padding: 10px; 
+        border-radius: 8px; 
+        border: 1px solid #444;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    ">
+      <div style="color: #aaa; font-size: 0.8rem; margin-bottom: 5px; text-align: center;">TURING MACHINE TAPE</div>
+      <div id="tape-content" style="display: flex; gap: 2px;"></div>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>

@@ -192,19 +192,49 @@ def simulate_dfa_api(data: SimulateInput):
     }
 
 
+@app.post("/tm")
+def build_tm(data: regexInput):
+    regex = insert_concatenation(data.regex.strip())
+    postfix = to_postfix(regex)
+    
+    from core.state import State
+    State._id = 0
+    
+    nfa = regex_to_nfa(postfix)
+    normalize_nfa(nfa)
+    
+    from automata.subset_construction import nfa_to_dfa
+    dfa = nfa_to_dfa(nfa)
+    
+    from automata.dfa_to_tm import dfa_to_tm
+    tm = dfa_to_tm(dfa)
+    
+    return tm
+
 @app.post("/simulate/tm")
 def simulate_tm_api(data: SimulateInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
+    
+    from core.state import State
+    State._id = 0
+    
     nfa = regex_to_nfa(postfix)
+    normalize_nfa(nfa)
+    
+    from automata.subset_construction import nfa_to_dfa
     dfa = nfa_to_dfa(nfa)
+    
+    from automata.dfa_to_tm import dfa_to_tm
     tm = dfa_to_tm(dfa)
-
+    
+    from simulation.tm_simulator import simulate_tm
     accepted, history = simulate_tm(tm, data.string)
 
     return {
         "accepted": accepted,
-        "steps": history
+        "steps": history,
+        "tm": tm
     }
 @app.post("/cfg/parse")
 def parse_cfg(data: CFGInput):

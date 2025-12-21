@@ -387,7 +387,9 @@ class Simulator {
 
   async runSimulation(regex, string) {
     try {
-      const endpoint = this.mode === 'DFA' ? '/simulate/dfa' : '/simulate/nfa';
+      let endpoint = '/simulate/nfa';
+      if (this.mode === 'DFA') endpoint = '/simulate/dfa';
+      if (this.mode === 'TM') endpoint = '/simulate/tm';
 
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
@@ -397,12 +399,15 @@ class Simulator {
       const data = await res.json();
 
       this.history = data.steps;
-      this.nfaData = this.normalize(data.nfa); // Sync structure
+      if (this.mode === 'TM') {
+        this.nfaData = data.tm;
+      } else {
+        this.nfaData = this.normalize(data.nfa); // Sync structure
+      }
 
       // Redraw to ensure consistency
-      const layout = this.layoutEngine.compute(this.nfaData,
-        this.mode === 'DFA' ? { xSpacing: 350, ySpacing: 250 } : {}
-      );
+      const spacing = (this.mode === 'DFA' || this.mode === 'TM') ? { xSpacing: 350, ySpacing: 250 } : {};
+      const layout = this.layoutEngine.compute(this.nfaData, spacing);
       this.renderer.draw(this.nfaData, layout);
 
       this.currentStep = 0;
@@ -436,18 +441,25 @@ class Simulator {
     const step = this.history[this.currentStep];
     if (!step) return;
 
-    // Update UI Text
     document.getElementById("stepCounter").innerText = `Step ${this.currentStep + 1} / ${this.history.length}`;
     document.getElementById("statusText").innerText = step.description || step.step;
 
-    // Highlight Graph
-    this.renderer.highlight(step.active, step.transitions);
+    this.renderer.highlight(step.active || [step.state], step.transitions);
 
-    // Check for acceptance at end
+    if (this.mode === 'TM') {
+      document.getElementById("tape-container").style.display = "block";
+      const tapeArr = step.tape ? step.tape.split('') : ["_"];
+      this.renderTape(tapeArr, step.head);
+    } else {
+      document.getElementById("tape-container").style.display = "none";
+    }
+
     if (this.currentStep === this.history.length - 1) {
-      const isAccepted = step.active.some(s => this.nfaData.accept.includes(s));
+      const accepted = (this.mode === 'TM') ? (step.state && this.nfaData.accept.includes(step.state)) :
+        step.active.some(s => this.nfaData.accept.includes(s));
+
       const statusEl = document.getElementById("statusText");
-      if (isAccepted) {
+      if (accepted) {
         statusEl.innerText = "Accepted ✅";
         statusEl.style.color = "#4ec9b0";
       } else {
@@ -487,6 +499,61 @@ class Simulator {
     }
   }
 
+  async loadTM(regex) {
+    try {
+      this.mode = 'TM';
+      document.getElementById("statusText").innerText = "Building Turing Machine...";
+      const res = await fetch(`${API_BASE}/tm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regex })
+      });
+      const tm = await res.json();
+
+      this.nfaData = tm;
+
+      const layout = this.layoutEngine.compute(this.nfaData, { xSpacing: 350, ySpacing: 250 });
+      this.renderer.draw(this.nfaData, layout);
+
+      this.resetSimulation();
+      document.getElementById("statusText").innerText = "TM Ready";
+      document.getElementById("stepCounter").innerText = "Standard Single-Tape TM";
+
+      document.getElementById("tape-container").style.display = "block";
+      this.renderTape(["_"], 0);
+
+    } catch (e) {
+      console.error(e);
+      alert("Error building TM");
+    }
+  }
+
+  renderTape(tapeChars, headPos) {
+    const container = document.getElementById("tape-content");
+    container.innerHTML = "";
+
+    tapeChars.forEach((char, i) => {
+      const cell = document.createElement("div");
+      cell.style.width = "30px";
+      cell.style.height = "30px";
+      cell.style.border = "1px solid #555";
+      cell.style.display = "flex";
+      cell.style.alignItems = "center";
+      cell.style.justifyContent = "center";
+      cell.style.fontSize = "1.1rem";
+      cell.style.fontFamily = "monospace";
+      cell.style.background = i === headPos ? "#264f78" : "#1e1e1e";
+      cell.innerText = char === "_" ? "␣" : char;
+
+      if (i === headPos) {
+        cell.style.border = "2px solid #007acc";
+        cell.style.boxShadow = "0 0 5px #007acc";
+      }
+
+      container.appendChild(cell);
+    });
+  }
+
   resetSimulation() {
     this.history = [];
     this.currentStep = 0;
@@ -509,6 +576,11 @@ window.buildNFA = () => {
 window.buildDFA = () => {
   const regex = document.getElementById("regex").value;
   simulator.loadDFA(regex);
+};
+
+window.buildTM = () => {
+  const regex = document.getElementById("regex").value;
+  simulator.loadTM(regex);
 };
 
 window.simulate = () => {
