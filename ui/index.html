@@ -2,48 +2,204 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <title>Automata Visualizer</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <title>NFA Simulator Pro</title>
+  <style>
+    :root {
+      --bg-color: #1e1e1e;
+      --sidebar-bg: #252526;
+      --accent: #007acc;
+      --text: #d4d4d4;
+      --success: #4ec9b0;
+      --error: #f44747;
+      --highlight: #264f78;
+    }
+
+    body {
+      margin: 0;
+      display: flex;
+      height: 100vh;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 320px;
+      background: var(--sidebar-bg);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.3);
+      z-index: 10;
+    }
+
+    h1 {
+      font-size: 1.2rem;
+      margin: 0;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Controls */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #aaa;
+    }
+
+    input[type="text"] {
+      background: #3c3c3c;
+      border: 1px solid #555;
+      color: white;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 1rem;
+    }
+
+    input:focus {
+      outline: 2px solid var(--accent);
+      border-color: transparent;
+    }
+
+    button {
+      background: var(--accent);
+      border: none;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #0062a3;
+    }
+
+    button.secondary {
+      background: #3c3c3c;
+    }
+
+    button.secondary:hover {
+      background: #4a4a4a;
+    }
+
+    /* Timeline / Status */
+    .status-panel {
+      margin-top: auto;
+      background: #1a1a1a;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #333;
+    }
+
+    .step-counter {
+      font-size: 0.8rem;
+      color: #777;
+      margin-bottom: 5px;
+    }
+
+    .status-text {
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+
+    .playback-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .playback-controls button {
+      flex: 1;
+      padding: 8px;
+      font-size: 0.9rem;
+    }
+
+    /* Canvas Area */
+    .main-view {
+      flex: 1;
+      position: relative;
+      overflow: auto;
+      /* Enable panning */
+      background-image:
+        radial-gradient(#333 1px, transparent 1px);
+      background-size: 20px 20px;
+      cursor: grab;
+    }
+
+    .main-view:active {
+      cursor: grabbing;
+    }
+
+    svg {
+      display: block;
+      /* Dimensions set by JS */
+    }
+
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 4px;
+      pointer-events: none;
+      font-size: 0.8rem;
+      display: none;
+    }
+  </style>
 </head>
 
 <body>
 
-  <div class="app">
-    <div class="panel">
-      <h2>Theory of Computing</h2>
+  <div class="sidebar">
+    <h1>NFA Studio</h1>
 
-      <div class="control-group">
-        <input id="regex" placeholder="Regex (e.g. (a|b)*abb)" />
-        <button onclick="buildNFA()">Build NFA</button>
-      </div>
-
-      <div class="control-group" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 20px;">
-        <h3>Simulation</h3>
-        <input id="inputString" placeholder="Input String (e.g. abb)" />
-        <button onclick="simulate()">Simulate</button>
-
-        <div class="playback-controls" style="margin-top: 10px;">
-          <button onclick="prevStep()">Previous</button>
-          <button onclick="nextStep()">Next</button>
-          <div id="status" style="margin-left: 10px; font-family: monospace; color: #ddd; display: inline-block;"></div>
-        </div>
-
-        <div style="margin-top: 15px; font-size: 0.9em; color: #aaa; border-left: 2px solid #555; padding-left: 10px;">
-          <strong>Note:</strong> In an NFA, the machine can be in multiple states at once (shown in Blue).
-          The simulation highlights all reachable states for the current input.
-        </div>
-      </div>
-
-      <div class="hint">
-        API: http://127.0.0.1:8000
-      </div>
+    <div class="control-group">
+      <label>Regular Expression</label>
+      <input type="text" id="regex" value="(a|b)*ab" placeholder="e.g. (a|b)*ab">
+      <button onclick="buildNFA()">Construct NFA</button>
+      <button class="secondary" onclick="buildDFA()">Convert to DFA</button>
     </div>
 
-    <svg id="canvas" width="1000" height="650"></svg>
+    <hr style="border: 0; border-top: 1px solid #444; width: 100%;">
+
+    <div class="control-group">
+      <label>Test Input</label>
+      <input type="text" id="inputString" value="aab" placeholder="e.g. aba">
+      <button class="secondary" onclick="simulate()">Start Simulation</button>
+    </div>
+
+    <div class="status-panel">
+      <div class="step-counter" id="stepCounter">Ready to simulate</div>
+      <div class="status-text" id="statusText">Waiting...</div>
+
+      <div class="playback-controls">
+        <button class="secondary" onclick="prevStep()">◀ Prev</button>
+        <button class="secondary" onclick="nextStep()">Next ▶</button>
+      </div>
+    </div>
   </div>
 
-  <script src="app.js"></script>
+  <div class="main-view" id="viewport">
+    <svg id="canvas" width="2000" height="2000"></svg>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+  <script src="/static/app.js"></script>
 </body>
 
 </html>

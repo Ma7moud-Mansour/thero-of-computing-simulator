@@ -2,72 +2,136 @@ from core.state import State
 from automata.nfa import NFA
 
 class Fragment:
+    """
+    Represents a partial NFA with a single start state and a set of accept states.
+    For strict Thompson, usually there is exactly one accept state, but we support a set 
+    just in case, which is then connected to the next state via integers.
+    """
     def __init__(self, start, accepts):
         self.start = start
-        self.accepts = accepts
+        self.accepts = accepts # Set of states
 
-def regex_to_nfa(postfix):
+def regex_to_nfa(postfix_tokens):
+    """
+    Converts a postfix regex token list to an NFA using Strict Thompson's Construction.
+    """
     stack = []
-    nfa = NFA()
+    
+    # Create a blank NFA object just to hold the transitions/states as we build
+    # But wait, our NFA class is built node-by-node. We typically just build the graph 
+    # and wrap it in NFA at the end.
+    
+    # We need a container for the transitions if we want to use NFA.add_transition helper,
+    # or we can just manipulate states directly since State objects hold their own data 
+    # (assuming the existing backend uses State objects).
+    # Let's check `core/state.py`.
+    # Based on previous file reads, `NFA` class holds `transitions` dictionary.
+    # So we should create a global `nfa` instance to store transitions? 
+    # OR, we create the states and transitions, and at the end populate a new NFA object.
+    
+    # Better approach: Create a temporary NFA tracker.
+    nfa = NFA() 
+    # NFA init creates start_state. We might overwrite it.
+    
+    if not postfix_tokens:
+        # Empty Regex -> Accepts Empty String
+        # q0 (Start, Accept)
+        s0 = State()
+        nfa.states.add(s0)
+        nfa.start_state = s0
+        nfa.accept_states.add(s0)
+        return nfa
 
-    for char in postfix:
-        if char.isalnum():
-            s0 = State()
-            s1 = State()
-            nfa.states.update([s0, s1])
-            nfa.alphabet.add(char)
-            nfa.add_transition(s0, char, s1)
-            stack.append(Fragment(s0, {s1}))
-
-        elif char == ".":
+    for token in postfix_tokens:
+        if token == ".":
+            if len(stack) < 2: return None # Error
             f2 = stack.pop()
             f1 = stack.pop()
-            # Link all accept states of f1 to start of f2
-            for a in f1.accepts:
-                nfa.add_transition(a, None, f2.start)
-            # Resulting fragment starts at f1.start and accepts at f2.accepts
+            
+            # Concatenation: A . B
+            # Link all f1.accepts -> f2.start with Epsilon
+            for s in f1.accepts:
+                nfa.add_transition(s, None, f2.start)
+            
+            # New Fragment: Start of A, Accept of B
+            # (Strictly: A's accept states are no longer accepting)
             stack.append(Fragment(f1.start, f2.accepts))
-
-        elif char == "|":
+            
+        elif token == "|":
+            if len(stack) < 2: return None # Error
             f2 = stack.pop()
             f1 = stack.pop()
-            start = State()
-            end = State()
-            nfa.states.update([start, end])
             
-            nfa.add_transition(start, None, f1.start)
-            nfa.add_transition(start, None, f2.start)
+            # Union: A | B
+            # 1. New Start State s0
+            s0 = State()
+            nfa.states.add(s0)
             
-            for a in f1.accepts:
-                nfa.add_transition(a, None, end)
-            for a in f2.accepts:
-                nfa.add_transition(a, None, end)
+            # 2. s0 -> epsilon -> A.start
+            nfa.add_transition(s0, None, f1.start)
+            
+            # 3. s0 -> epsilon -> B.start
+            nfa.add_transition(s0, None, f2.start)
+            
+            # 4. New Accept State f0
+            f0 = State()
+            nfa.states.add(f0)
+            
+            # 5. A.accepts -> epsilon -> f0
+            for s in f1.accepts:
+                nfa.add_transition(s, None, f0)
                 
-            stack.append(Fragment(start, {end}))
-
-        elif char == "*":
-            f = stack.pop()
-            start = State()
-            end = State()
-            nfa.states.update([start, end])
+            # 6. B.accepts -> epsilon -> f0
+            for s in f2.accepts:
+                nfa.add_transition(s, None, f0)
+                
+            stack.append(Fragment(s0, {f0}))
             
-            # Epsilon to start of fragment
-            nfa.add_transition(start, None, f.start)
-            # Epsilon to bypass fragment (0 occurrences)
-            nfa.add_transition(start, None, end)
+        elif token == "*":
+            if not stack: return None # Error
+            f1 = stack.pop()
             
-            for a in f.accepts:
-                # Epsilon back to start (loop)
-                nfa.add_transition(a, None, f.start)
-                # Epsilon to end (break loop)
-                nfa.add_transition(a, None, end)
+            # Kleene Star: A*
+            # 1. New Start s0
+            s0 = State()
+            nfa.states.add(s0)
             
-            stack.append(Fragment(start, {end}))
-
+            # 2. New Accept f0
+            f0 = State()
+            nfa.states.add(f0)
+            
+            # 3. s0 -> epsilon -> A.start
+            nfa.add_transition(s0, None, f1.start)
+            
+            # 4. s0 -> epsilon -> f0 (Empty string case)
+            nfa.add_transition(s0, None, f0)
+            
+            # 5. A.accepts -> epsilon -> f0 (Exit)
+            for s in f1.accepts:
+                nfa.add_transition(s, None, f0)
+                
+            # 6. A.accepts -> epsilon -> A.start (Loop)
+            for s in f1.accepts:
+                nfa.add_transition(s, None, f1.start)
+                
+            stack.append(Fragment(s0, {f0}))
+            
+        else:
+            # Literal Character
+            s_start = State()
+            s_end = State()
+            nfa.states.add(s_start)
+            nfa.states.add(s_end)
+            
+            nfa.add_transition(s_start, token, s_end)
+            
+            stack.append(Fragment(s_start, {s_end}))
+            
     if not stack:
-        return NFA() # Empty NFA if empty regex
-
-    final = stack.pop()
-    nfa.start_state = final.start
-    nfa.accept_states = final.accepts
+        return None
+        
+    final_fragment = stack.pop()
+    nfa.start_state = final_fragment.start
+    nfa.accept_states = final_fragment.accepts
+    
     return nfa
