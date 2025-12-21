@@ -113,7 +113,7 @@ function computeLayout(nfa) {
 
   const pos = {};
   const X_SPACING = 150;
-  const Y_SPACING = 100;
+  const Y_SPACING = 140; // Increased spacing
   const START_X = 100;
   const CENTER_Y = 350;
 
@@ -131,7 +131,7 @@ function computeLayout(nfa) {
     });
   });
 
-  return pos;
+  return { pos, ranks };
 }
 
 
@@ -153,7 +153,9 @@ function drawNFA(nfa) {
   `;
   svg.appendChild(defs);
 
-  const pos = computeLayout(nfa);
+  const layout = computeLayout(nfa);
+  const pos = layout.pos;
+  const ranks = layout.ranks;
 
   // --- Transitions ---
   // Group by (from, to) to handle multiple edges
@@ -161,7 +163,7 @@ function drawNFA(nfa) {
   nfa.transitions.forEach((t, i) => {
     const key = `${t.from}-${t.to}`;
     if (!edgeGroups[key]) edgeGroups[key] = [];
-    edgeGroups[key].push({ ...t, id: i }); // Add ID for highlighting
+    edgeGroups[key].push({ ...t, id: i });
   });
 
   Object.values(edgeGroups).forEach(group => {
@@ -169,47 +171,79 @@ function drawNFA(nfa) {
     const a = pos[from];
     const b = pos[to];
     const isLoop = from === to;
+    const rankFrom = ranks[from];
+    const rankTo = ranks[to];
+    const rankDiff = rankTo - rankFrom;
 
     // If multiple edges between same nodes, spread them out
     group.forEach((t, i) => {
-      const offset = (i - (group.length - 1) / 2) * 20;
+      const groupOffset = (i - (group.length - 1) / 2) * 20;
 
       let pathD = "";
       let labelX = 0, labelY = 0;
 
       if (isLoop) {
+        // Self loop: Arch UP
+        const loopHeight = 50 + Math.abs(groupOffset);
         pathD = `M ${a.x} ${a.y - 28} 
-                      C ${a.x - 40} ${a.y - 100}, ${a.x + 40} ${a.y - 100}, ${a.x} ${a.y - 28}`;
+                     C ${a.x - 30} ${a.y - 28 - loopHeight}, ${a.x + 30} ${a.y - 28 - loopHeight}, ${a.x} ${a.y - 28}`;
         labelX = a.x;
-        labelY = a.y - 90 - offset;
-      } else {
-        // Quadratic Bezier for curve if needed, or simple line
-        // We add 'offset' to curvature
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
+        labelY = a.y - 35 - loopHeight;
+      } else {            // Smart Routing
         const midX = (a.x + b.x) / 2;
         const midY = (a.y + b.y) / 2;
+        let cpX = midX;
+        let cpY = midY;
 
-        // Normal vector for offset
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const nomX = -dy / dist;
-        const nomY = dx / dist;
+        // Unique Offset based on Source Node specific properties to avoid stacking
+        // We use 'from' node name or rank to jitter the height slightly
+        // We convert name 'q3' -> 3
+        const seed = parseInt(from.replace(/\D/g, '') || '0') * 7;
+        const uniqueShift = (seed % 40) - 20; // -20 to 20 px variation
 
-        const curveness = 30 + Math.abs(offset * 2);
-        // Apply curvature mostly if it is backward edge or to separate
+        const rankDiff = rankTo - rankFrom;
 
-        const cpX = midX + nomX * offset * 3;
-        const cpY = midY + nomY * offset * 3 - (Math.abs(dx) > 0 ? 30 : 0); // slight arc up
+        if (rankDiff === 1) {
+          // Direct neighbor: Straight or slight curve if grouping
+          const curvature = groupOffset * 3;
+          // Normal vector calculation
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > 0) {
+            const nomX = -dy / dist;
+            const nomY = dx / dist;
+            cpX = midX + nomX * curvature;
+            cpY = midY + nomY * curvature;
+          }
+        } else if (rankDiff > 1) {
+          // Forward Skip: Arch UP high
+          // Curvature increases with dist AND unique shift
+          const curvature = -80 - (rankDiff * 30) + groupOffset * 5 + uniqueShift;
+          cpY = midY + curvature;
+          cpX += uniqueShift; // Also shift Apex X slightly
+
+        } else if (rankDiff < 0) {
+          // Back Edge: Arch DOWN deep
+          const curvature = 150 + (Math.abs(rankDiff) * 30) + groupOffset * 5 + uniqueShift;
+          cpY = midY + curvature;
+          cpX += uniqueShift;
+
+        } else {
+          // Vertical (Same Rank): Curve out
+          const curvature = 60 + groupOffset * 10 + uniqueShift;
+          cpX = midX + curvature;
+        }
 
         pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
 
-        labelX = cpX;
-        labelY = cpY; // approximate
+        // Label position: Apex at t=0.5
+        labelX = 0.25 * a.x + 0.5 * cpX + 0.25 * b.x;
+        labelY = 0.25 * a.y + 0.5 * cpY + 0.25 * b.y;
       }
 
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
       path.setAttribute("d", pathD);
-      path.setAttribute("id", `edge-${t.from}-${t.to}-${t.symbol}-${t.id || i}`); // logic ID
       path.setAttribute("class", "edge");
       path.setAttribute("fill", "none");
       path.setAttribute("stroke", t.symbol === "ε" ? "#777" : "#aaa");
@@ -224,11 +258,10 @@ function drawNFA(nfa) {
       text.setAttribute("fill", "#ddd");
       text.setAttribute("font-size", "14");
       text.setAttribute("text-anchor", "middle");
-      text.setAttribute("class", "edge-label");
       text.textContent = t.symbol;
 
       // Background for text readability
-      const bbox = { x: labelX - 10, y: labelY - 10, width: 20, height: 20 }; // approx
+      const bbox = { x: labelX - 10, y: labelY - 10, width: 20, height: 20 };
       const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       bg.setAttribute("x", bbox.x);
       bg.setAttribute("y", bbox.y);

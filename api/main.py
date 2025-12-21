@@ -114,6 +114,10 @@ def normalize_nfa(nfa):
 def build_nfa(data: regexInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
+    
+    from core.state import State
+    State._id = 0
+    
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
     return serialize_nfa(nfa)
@@ -122,6 +126,10 @@ def build_nfa(data: regexInput):
 def simulate_nfa_api(data: SimulateInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
+    
+    from core.state import State
+    State._id = 0
+    
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
 
@@ -137,6 +145,10 @@ def simulate_nfa_api(data: SimulateInput):
 def build_dfa(data: regexInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
+    
+    from core.state import State
+    State._id = 0
+    
     nfa = regex_to_nfa(postfix)
     # Note: We might want to normalize NFA before converting? 
     # Usually doesn't matter for DFA structure, but for consistency let's do it.
