@@ -358,6 +358,7 @@ class Simulator {
     this.history = [];
     this.currentStep = 0;
     this.nfaData = null;
+    this.mode = 'NFA'; // 'NFA' or 'DFA'
 
     this.layoutEngine = new LayoutEngine();
     this.renderer = new Renderer("canvas");
@@ -365,6 +366,7 @@ class Simulator {
 
   async loadNFA(regex) {
     try {
+      this.mode = 'NFA';
       const res = await fetch(`${API_BASE}/nfa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -385,7 +387,9 @@ class Simulator {
 
   async runSimulation(regex, string) {
     try {
-      const res = await fetch(`${API_BASE}/simulate/nfa`, {
+      const endpoint = this.mode === 'DFA' ? '/simulate/dfa' : '/simulate/nfa';
+
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ regex, string })
@@ -396,7 +400,9 @@ class Simulator {
       this.nfaData = this.normalize(data.nfa); // Sync structure
 
       // Redraw to ensure consistency
-      const layout = this.layoutEngine.compute(this.nfaData);
+      const layout = this.layoutEngine.compute(this.nfaData,
+        this.mode === 'DFA' ? { xSpacing: 350, ySpacing: 250 } : {}
+      );
       this.renderer.draw(this.nfaData, layout);
 
       this.currentStep = 0;
@@ -455,6 +461,7 @@ class Simulator {
 
   async loadDFA(regex) {
     try {
+      this.mode = 'DFA';
       document.getElementById("statusText").innerText = "Building DFA...";
       const res = await fetch(`${API_BASE}/dfa`, {
         method: "POST",

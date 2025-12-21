@@ -110,6 +110,15 @@ def normalize_nfa(nfa):
     return nfa
 
 #------------------------------------------
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+app.mount("/static", StaticFiles(directory="ui"), name="static")
+
+@app.get("/")
+def home():
+    return FileResponse("ui/index.html")
+
 @app.post("/nfa")
 def build_nfa(data: regexInput):
     regex = insert_concatenation(data.regex.strip())
@@ -158,6 +167,29 @@ def build_dfa(data: regexInput):
     dfa = nfa_to_dfa(nfa)
 
     return dfa
+
+@app.post("/simulate/dfa")
+def simulate_dfa_api(data: SimulateInput):
+    regex = insert_concatenation(data.regex.strip())
+    postfix = to_postfix(regex)
+    
+    from core.state import State
+    State._id = 0
+    
+    nfa = regex_to_nfa(postfix)
+    normalize_nfa(nfa)
+    
+    from automata.subset_construction import nfa_to_dfa
+    dfa = nfa_to_dfa(nfa)
+    
+    from simulation.dfa_simulator import simulate_dfa
+    accepted, history = simulate_dfa(dfa, data.string)
+    
+    return {
+        "accepted": accepted,
+        "steps": history,
+        "nfa": dfa
+    }
 
 
 @app.post("/simulate/tm")
