@@ -110,6 +110,17 @@ class Renderer {
     this.defsInjected = false;
     this.stateMap = {}; // DOM Element Map
     this.edgeMap = [];  // Array of {dom, transition}
+
+    // Drag State
+    this.dragState = null; // { nodeId, startX, startY, initialNodeX, initialNodeY }
+
+    // Bind methods
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.handleMouseUp = this.handleMouseUp.bind(this);
+
+    // Global listeners for drag
+    document.addEventListener("mousemove", this.handleMouseMove);
+    document.addEventListener("mouseup", this.handleMouseUp);
   }
 
   initDefs() {
@@ -140,7 +151,12 @@ class Renderer {
     this.svg.setAttribute("width", layout.width);
     this.svg.setAttribute("height", layout.height);
 
+    // Store layout for updates
+    this.layout = layout;
     const { positions, ranks } = layout;
+
+    // reset drag state on redraw
+    this.dragState = null;
 
     // --- DRAW EDGES ---
     this.drawEdges(nfa, positions, ranks);
@@ -155,7 +171,11 @@ class Renderer {
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("id", `state-${name}`);
     g.setAttribute("class", "state-group");
-    g.style.cursor = "pointer";
+    g.setAttribute("class", "state-group");
+    g.style.cursor = "grab";
+
+    // Drag start listener
+    g.addEventListener("mousedown", (e) => this.handleMouseDown(e, name));
 
     // Start Indicator
     if (isStart) {
@@ -214,6 +234,8 @@ class Renderer {
 
     Object.values(groups).forEach(group => {
       const { from, to } = group[0];
+
+      // We rely on this.layout.positions being up-to-date
       const a = positions[from];
       const b = positions[to];
       const rankA = a.rank;
@@ -221,58 +243,9 @@ class Renderer {
 
       group.forEach((t, index) => {
         const isEpsilon = t.symbol === "ε";
-        // Offset calculation (Jitter)
-        // Use state ID to generate unique noise
-        const seed = (parseInt(from.replace(/\D/g, '') || 0) * 13 + parseInt(to.replace(/\D/g, '') || 0) * 7);
-        const jitter = (seed % 30) - 15;
 
-        // Group Fan-out
-        const fanOut = (index - (group.length - 1) / 2) * 25;
-
-        let pathD = "";
-        let cpX, cpY, labelX, labelY;
-
-        const midX = (a.x + b.x) / 2;
-        const midY = (a.y + b.y) / 2;
-
-        if (from === to) {
-          // Loop
-          const h = 50 + Math.abs(fanOut);
-          pathD = `M ${a.x} ${a.y - 25} C ${a.x - 30} ${a.y - 25 - h}, ${a.x + 30} ${a.y - 25 - h}, ${a.x} ${a.y - 25}`;
-          cpX = a.x; cpY = a.y - 25 - h;
-        } else if (Math.abs(rankA - rankB) === 1) {
-          // Neighbor
-          // Slight curve for style
-          const curve = fanOut + jitter;
-          // Calc normal
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          const nx = -dy / len;
-          const ny = dx / len;
-
-          cpX = midX + nx * curve * 3;
-          cpY = midY + ny * curve * 3;
-
-          pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
-        } else if (rankB > rankA) {
-          // Forward Skip (Go OVER)
-          const arch = -80 - ((rankB - rankA) * 30) + fanOut + jitter;
-          cpX = midX + jitter;
-          cpY = midY + arch;
-          pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
-        } else {
-          // Backward Edge (Go UNDER)
-          const arch = 100 + ((rankA - rankB) * 30) + fanOut + jitter;
-          cpX = midX + jitter;
-          cpY = midY + arch;
-          pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
-        }
-
-        // Label config
-        // Bezier at t=0.5
-        labelX = 0.25 * a.x + 0.5 * cpX + 0.25 * b.x;
-        labelY = 0.25 * a.y + 0.5 * cpY + 0.25 * b.y;
+        // Calculate Path
+        const { pathD, labelX, labelY } = this.calculateEdgePath(a, b, rankA, rankB, index, group.length, from, to);
 
         // Draw Path
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -284,6 +257,9 @@ class Renderer {
         path.setAttribute("marker-end", "url(#arrow)");
         this.svg.appendChild(path);
 
+        // Label Group (rect + text) for easier updating
+        const labelGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
         // Label Box
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         rect.setAttribute("x", labelX - 10);
@@ -291,7 +267,7 @@ class Renderer {
         rect.setAttribute("width", 20);
         rect.setAttribute("height", 20);
         rect.setAttribute("fill", "#1e1e1e");
-        this.svg.appendChild(rect);
+        labelGroup.appendChild(rect);
 
         const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
         txt.setAttribute("x", labelX);
@@ -300,16 +276,204 @@ class Renderer {
         txt.setAttribute("fill", "#ddd");
         txt.setAttribute("font-size", "12");
         txt.textContent = t.symbol;
-        this.svg.appendChild(txt);
+        labelGroup.appendChild(txt);
+
+        this.svg.appendChild(labelGroup);
 
         this.edgeMap.push({
           dom: path,
+          labelGroup: labelGroup, // Store label group
+          rect: rect,
+          text: txt,
           data: t,
           from: from,
-          to: to
+          to: to,
+          index: index,
+          groupSize: group.length,
+          rankA: rankA,
+          rankB: rankB
         });
       });
     });
+  }
+
+  calculateEdgePath(a, b, rankA, rankB, index, groupSize, fromId, toId) {
+    // Offset calculation (Jitter)
+    // Use state ID to generate unique noise
+    const seed = (parseInt(fromId.replace(/\D/g, '') || 0) * 13 + parseInt(toId.replace(/\D/g, '') || 0) * 7);
+    const jitter = (seed % 30) - 15;
+
+    // Group Fan-out
+    const fanOut = (index - (groupSize - 1) / 2) * 25;
+
+    let pathD = "";
+    let cpX, cpY, labelX, labelY;
+
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+
+    if (fromId === toId) {
+      // Loop
+      const h = 50 + Math.abs(fanOut);
+      // Ensure control points move with node
+      pathD = `M ${a.x} ${a.y - 25} C ${a.x - 30} ${a.y - 25 - h}, ${a.x + 30} ${a.y - 25 - h}, ${a.x} ${a.y - 25}`;
+      cpX = a.x; cpY = a.y - 25 - h;
+    } else if (Math.abs(rankA - rankB) === 1) {
+      // Neighbor
+      const curve = fanOut + jitter;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const nx = -dy / len; // Normal vector
+      const ny = dx / len;
+
+      cpX = midX + nx * curve * 3;
+      cpY = midY + ny * curve * 3;
+
+      pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
+    } else if (rankB > rankA) {
+      // Forward Skip (Go OVER)
+      const arch = -80 - ((rankB - rankA) * 30) + fanOut + jitter;
+      cpX = midX + jitter;
+      cpY = midY + arch;
+      pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
+    } else {
+      // Backward Edge (Go UNDER)
+      const arch = 100 + ((rankA - rankB) * 30) + fanOut + jitter;
+      cpX = midX + jitter;
+      cpY = midY + arch;
+      pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
+    }
+
+    // Label Position (Bezier t=0.5 approx)
+    labelX = 0.25 * a.x + 0.5 * cpX + 0.25 * b.x;
+    labelY = 0.25 * a.y + 0.5 * cpY + 0.25 * b.y;
+
+    return { pathD, labelX, labelY };
+  }
+
+  handleMouseDown(event, nodeId) {
+    event.stopPropagation(); // Prevent panning if implemented on bg
+    event.preventDefault();
+
+    const nodePos = this.layout.positions[nodeId];
+
+    // Get mouse pos relative to SVG
+    const pt = this.svg.createSVGPoint();
+    pt.x = event.clientX;
+    pt.y = event.clientY;
+    const svgP = pt.matrixTransform(this.svg.getScreenCTM().inverse());
+
+    this.dragState = {
+      nodeId: nodeId,
+      startX: svgP.x,
+      startY: svgP.y,
+      initialNodeX: nodePos.x,
+      initialNodeY: nodePos.y
+    };
+
+    // Visual feedback
+    if (this.stateMap[nodeId]) {
+      this.stateMap[nodeId].style.cursor = "grabbing";
+    }
+  }
+
+  handleMouseMove(event) {
+    if (!this.dragState) return;
+
+    event.preventDefault();
+
+    const { nodeId, startX, startY, initialNodeX, initialNodeY } = this.dragState;
+
+    // Current Mouse Pos
+    const pt = this.svg.createSVGPoint();
+    pt.x = event.clientX;
+    pt.y = event.clientY;
+    const svgP = pt.matrixTransform(this.svg.getScreenCTM().inverse());
+
+    const dx = svgP.x - startX;
+    const dy = svgP.y - startY;
+
+    // Update Node Logic Position
+    const newX = initialNodeX + dx;
+    const newY = initialNodeY + dy;
+
+    this.layout.positions[nodeId].x = newX;
+    this.layout.positions[nodeId].y = newY;
+
+    // Update Node Visuals
+    const g = this.stateMap[nodeId];
+    if (g) {
+      // We need to update all children or transform the group. 
+      // Original code sets cx/cy on circles and x/y on text/path.
+      // It's cleaner to transform the group, BUT the original code didn't use transform.
+      // Let's update the attributes directly to match the renderer style.
+
+      // 1. Update Start Arrow (if exists)
+      const arrow = g.querySelector("path[marker-end]");
+      if (arrow) {
+        arrow.setAttribute("d", `M ${newX - 50} ${newY} L ${newX - 25} ${newY}`);
+      }
+
+      // 2. Update Circles
+      const circles = g.querySelectorAll("circle");
+      circles.forEach(c => {
+        c.setAttribute("cx", newX);
+        c.setAttribute("cy", newY);
+      });
+
+      // 3. Update Text
+      const text = g.querySelector("text");
+      if (text) {
+        text.setAttribute("x", newX);
+        text.setAttribute("y", newY + 5);
+      }
+    }
+
+    // Update Edges
+    this.updateConnectedEdges(nodeId);
+  }
+
+  handleMouseUp(event) {
+    if (this.dragState) {
+      if (this.stateMap[this.dragState.nodeId]) {
+        this.stateMap[this.dragState.nodeId].style.cursor = "grab";
+      }
+      this.dragState = null;
+    }
+  }
+
+  updateConnectedEdges(movedNodeId) {
+    // Find edges connected to this node
+    const connectedEdges = this.edgeMap.filter(e => e.from === movedNodeId || e.to === movedNodeId);
+
+    connectedEdges.forEach(edge => {
+      const a = this.layout.positions[edge.from];
+      const b = this.layout.positions[edge.to];
+
+      const { pathD, labelX, labelY } = this.calculateEdgePath(
+        a, b, edge.rankA, edge.rankB, edge.index, edge.groupSize, edge.from, edge.to
+      );
+
+      // Update Path
+      edge.dom.setAttribute("d", pathD);
+
+      // Update Label
+      if (edge.labelGroup) { // Check if we are using the new group structure
+        const rect = edge.labelGroup.querySelector("rect");
+        const txt = edge.labelGroup.querySelector("text");
+
+        if (rect) {
+          rect.setAttribute("x", labelX - 10);
+          rect.setAttribute("y", labelY - 10);
+        }
+        if (txt) {
+          txt.setAttribute("x", labelX);
+          txt.setAttribute("y", labelY + 4);
+        }
+      }
+    });
+
   }
 
   highlight(activeStates, transitions) {
