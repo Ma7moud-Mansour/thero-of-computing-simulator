@@ -127,10 +127,10 @@ class Renderer {
     if (this.defsInjected) return;
     const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
     defs.innerHTML = `
-            <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#777" />
             </marker>
-            <marker id="arrow-active" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <marker id="arrow-active" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#4ec9b0" />
             </marker>
         `;
@@ -180,7 +180,13 @@ class Renderer {
     // Start Indicator
     if (isStart) {
       const arrow = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      arrow.setAttribute("d", `M ${pos.x - 50} ${pos.y} L ${pos.x - 25} ${pos.y}`);
+
+      // Calculate start arrow position relative to boundary
+      // Node is at pos.x, radius 20. Start arrow should end at pos.x - 20
+      const startX = pos.x - 50;
+      const endX = pos.x - 22; // Slight gap for marker
+
+      arrow.setAttribute("d", `M ${startX} ${pos.y} L ${endX} ${pos.y}`);
       arrow.setAttribute("stroke", "#4ec9b0");
       arrow.setAttribute("stroke-width", "3");
       arrow.setAttribute("marker-end", "url(#arrow-active)");
@@ -223,13 +229,37 @@ class Renderer {
     this.stateMap[name] = g;
   }
 
+
+
+  // --- Geometry Helpers ---
+
+  getBoundaryPoint(center, target, radius) {
+    const dx = target.x - center.x;
+    const dy = target.y - center.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist === 0) return { x: center.x, y: center.y - radius }; // Default for loops
+
+    const scale = radius / dist;
+    return {
+      x: center.x + dx * scale,
+      y: center.y + dy * scale
+    };
+  }
+
   drawEdges(nfa, positions, ranks) {
     // Group edges
     const groups = {};
+    const pairCounts = {}; // Track A-B vs B-A
+
     nfa.transitions.forEach(t => {
       const key = `${t.from}|${t.to}`;
       if (!groups[key]) groups[key] = [];
       groups[key].push(t);
+
+      // Track bidirectional existence
+      const pairKey = [t.from, t.to].sort().join('|');
+      pairCounts[pairKey] = (pairCounts[pairKey] || 0) + 1;
     });
 
     Object.values(groups).forEach(group => {
@@ -241,11 +271,16 @@ class Renderer {
       const rankA = a.rank;
       const rankB = b.rank;
 
+      // Determine if bidirectional
+      const isReverse = groups[`${to}|${from}`] !== undefined && from !== to;
+
       group.forEach((t, index) => {
         const isEpsilon = t.symbol === "ε";
 
         // Calculate Path
-        const { pathD, labelX, labelY } = this.calculateEdgePath(a, b, rankA, rankB, index, group.length, from, to);
+        const { pathD, labelX, labelY } = this.calculateEdgePath(
+          a, b, index, group.length, from, to, isReverse
+        );
 
         // Draw Path
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -291,63 +326,100 @@ class Renderer {
           index: index,
           groupSize: group.length,
           rankA: rankA,
-          rankB: rankB
+          rankB: rankB,
+          isReverse: isReverse // Store for drag updates
         });
       });
     });
   }
 
-  calculateEdgePath(a, b, rankA, rankB, index, groupSize, fromId, toId) {
-    // Offset calculation (Jitter)
-    // Use state ID to generate unique noise
-    const seed = (parseInt(fromId.replace(/\D/g, '') || 0) * 13 + parseInt(toId.replace(/\D/g, '') || 0) * 7);
-    const jitter = (seed % 30) - 15;
-
-    // Group Fan-out
-    const fanOut = (index - (groupSize - 1) / 2) * 25;
+  calculateEdgePath(a, b, index, groupSize, fromId, toId, isReverse) {
+    const RADIUS = 22; // 20 + padding for stroke
 
     let pathD = "";
     let cpX, cpY, labelX, labelY;
 
-    const midX = (a.x + b.x) / 2;
-    const midY = (a.y + b.y) / 2;
-
     if (fromId === toId) {
-      // Loop
-      const h = 50 + Math.abs(fanOut);
-      // Ensure control points move with node
-      pathD = `M ${a.x} ${a.y - 25} C ${a.x - 30} ${a.y - 25 - h}, ${a.x + 30} ${a.y - 25 - h}, ${a.x} ${a.y - 25}`;
-      cpX = a.x; cpY = a.y - 25 - h;
-    } else if (Math.abs(rankA - rankB) === 1) {
-      // Neighbor
-      const curve = fanOut + jitter;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      const nx = -dy / len; // Normal vector
-      const ny = dx / len;
+      // --- Self-Loop ---
+      // Arc above the node
+      const angSpan = Math.PI / 4; // 45 degrees
+      const startAng = -Math.PI / 2 - angSpan / 2;
+      const endAng = -Math.PI / 2 + angSpan / 2;
 
-      cpX = midX + nx * curve * 3;
-      cpY = midY + ny * curve * 3;
+      // Fan out loops if multiple
+      const offset = (index - (groupSize - 1) / 2) * 15;
+      const loopH = 40 + Math.abs(offset) + (groupSize * 5);
 
-      pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
-    } else if (rankB > rankA) {
-      // Forward Skip (Go OVER)
-      const arch = -80 - ((rankB - rankA) * 30) + fanOut + jitter;
-      cpX = midX + jitter;
-      cpY = midY + arch;
-      pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
+      const sx = a.x + RADIUS * Math.cos(startAng - (offset * 0.05));
+      const sy = a.y + RADIUS * Math.sin(startAng - (offset * 0.05));
+      const ex = a.x + RADIUS * Math.cos(endAng + (offset * 0.05));
+      const ey = a.y + RADIUS * Math.sin(endAng + (offset * 0.05));
+
+      // Cubic Bezier Control Points
+      const c1x = a.x - 10 - offset;
+      const c1y = a.y - loopH;
+      const c2x = a.x + 10 + offset;
+      const c2y = a.y - loopH;
+
+      pathD = `M ${sx} ${sy} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`;
+
+      labelX = a.x + offset;
+      labelY = a.y - loopH - 10;
+
     } else {
-      // Backward Edge (Go UNDER)
-      const arch = 100 + ((rankA - rankB) * 30) + fanOut + jitter;
-      cpX = midX + jitter;
-      cpY = midY + arch;
-      pathD = `M ${a.x} ${a.y} Q ${cpX} ${cpY} ${b.x} ${b.y}`;
-    }
+      // --- Standard Edge ---
 
-    // Label Position (Bezier t=0.5 approx)
-    labelX = 0.25 * a.x + 0.5 * cpX + 0.25 * b.x;
-    labelY = 0.25 * a.y + 0.5 * cpY + 0.25 * b.y;
+      // Base Logic: 
+      // If single connection (groupSize=1) AND not bidirectional -> Straight Line
+      // Else -> Quadratic Curve
+
+      const isSimple = groupSize === 1 && !isReverse;
+
+      const start = this.getBoundaryPoint(a, b, RADIUS);
+      const end = this.getBoundaryPoint(b, a, RADIUS);
+
+      if (isSimple) {
+        pathD = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+        labelX = (start.x + end.x) / 2;
+        labelY = (start.y + end.y) / 2;
+      } else {
+        // Curvature needed
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const midX = (a.x + b.x) / 2;
+        const midY = (a.y + b.y) / 2;
+
+        // Fan out
+        // Base offset for bidirectional separation
+        const biDirOffset = isReverse ? 30 : 0;
+
+        // Multi-edge spread
+        const spread = (index - (groupSize - 1) / 2) * 20;
+
+        const totalCurve = biDirOffset + spread;
+
+        // Normal vector
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const nx = -dy / len;
+        const ny = dx / len;
+
+        cpX = midX + nx * totalCurve;
+        cpY = midY + ny * totalCurve;
+
+        // Improve start/end attachment for curves
+        // Instead of center-to-center boundary, we can angle the start/end slightly
+        // based on the control point to make it look "attached" naturally.
+
+        const curvStart = this.getBoundaryPoint(a, { x: cpX, y: cpY }, RADIUS);
+        const curvEnd = this.getBoundaryPoint(b, { x: cpX, y: cpY }, RADIUS);
+
+        pathD = `M ${curvStart.x} ${curvStart.y} Q ${cpX} ${cpY} ${curvEnd.x} ${curvEnd.y}`;
+
+        // Label at T=0.5
+        labelX = 0.25 * curvStart.x + 0.5 * cpX + 0.25 * curvEnd.x;
+        labelY = 0.25 * curvStart.y + 0.5 * cpY + 0.25 * curvEnd.y;
+      }
+    }
 
     return { pathD, labelX, labelY };
   }
@@ -412,7 +484,7 @@ class Renderer {
       // 1. Update Start Arrow (if exists)
       const arrow = g.querySelector("path[marker-end]");
       if (arrow) {
-        arrow.setAttribute("d", `M ${newX - 50} ${newY} L ${newX - 25} ${newY}`);
+        arrow.setAttribute("d", `M ${newX - 50} ${newY} L ${newX - 22} ${newY}`);
       }
 
       // 2. Update Circles
@@ -438,6 +510,9 @@ class Renderer {
     if (this.dragState) {
       if (this.stateMap[this.dragState.nodeId]) {
         this.stateMap[this.dragState.nodeId].style.cursor = "grab";
+
+        // Re-calculate drag state one last time to snap perfect positions? 
+        // Not needed, but we can ensure visual states are cleared.
       }
       this.dragState = null;
     }
@@ -452,8 +527,9 @@ class Renderer {
       const b = this.layout.positions[edge.to];
 
       const { pathD, labelX, labelY } = this.calculateEdgePath(
-        a, b, edge.rankA, edge.rankB, edge.index, edge.groupSize, edge.from, edge.to
+        a, b, edge.index, edge.groupSize, edge.from, edge.to, edge.isReverse
       );
+
 
       // Update Path
       edge.dom.setAttribute("d", pathD);
