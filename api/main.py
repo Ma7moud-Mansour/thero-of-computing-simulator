@@ -20,6 +20,7 @@ from simulation.nfa_simulator import simulate_nfa
 from simulation.tm_simulator import simulate_tm
 from cfg.parser import parse_with_tree
 from cfg.grammar import Grammar
+from regex.validation import validate_regex
 
 #------------------------------------------
 app = FastAPI()
@@ -125,6 +126,11 @@ def home():
 
 @app.post("/nfa")
 def build_nfa(data: regexInput):
+    try:
+        validate_regex(data.regex.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
@@ -137,6 +143,11 @@ def build_nfa(data: regexInput):
 
 @app.post("/simulate/nfa")
 def simulate_nfa_api(data: SimulateInput):
+    try:
+        validate_regex(data.regex.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
@@ -156,6 +167,11 @@ def simulate_nfa_api(data: SimulateInput):
 
 @app.post("/dfa")
 def build_dfa(data: regexInput):
+    try:
+        validate_regex(data.regex.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
@@ -174,6 +190,11 @@ def build_dfa(data: regexInput):
 
 @app.post("/simulate/dfa")
 def simulate_dfa_api(data: SimulateInput):
+    try:
+        validate_regex(data.regex.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
@@ -198,6 +219,11 @@ def simulate_dfa_api(data: SimulateInput):
 
 @app.post("/build_tm")
 def build_tm(data: regexInput):
+    try:
+        validate_regex(data.regex.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
