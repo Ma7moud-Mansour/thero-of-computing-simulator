@@ -7,6 +7,7 @@ def nfa_to_pda(nfa):
     pda.input_alphabet = nfa.alphabet.copy()
     pda.start_state = nfa.start_state
     pda.accept_states = nfa.accept_states.copy()
+    pda.start_stack_symbol = "Z0"
 
     for (state, symbol), targets in nfa.transitions.items():
         for t in targets:

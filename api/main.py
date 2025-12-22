@@ -259,3 +259,70 @@ def parse_cfg(data: CFGInput):
 
     accepted, tree = parse_with_tree(g, data.string)
     return {"accepted": accepted}
+
+#------------------------------------------
+def serialize_pda(pda):
+    return {
+        "states": [s.name for s in pda.states],
+        "start": pda.start_state.name,
+        "accept": [s.name for s in pda.accept_states],
+        "transitions": [
+            {
+                "from": s.name,
+                "symbol": sym or "ε",
+                "pop": pop_sym,
+                "to": t.name,
+                "push": "".join(push) if isinstance(push, (list, tuple)) else str(push)
+            }
+            # pda.transitions key is (state, input, stack_top)
+            for (s, sym, pop_sym), targets in pda.transitions.items()
+            for (t, push) in targets
+        ]
+    }
+
+@app.post("/pda")
+def build_pda(data: regexInput):
+    try:
+        validate_regex(data.regex.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    regex = insert_concatenation(data.regex.strip())
+    postfix = to_postfix(regex)
+    
+    from core.state import State
+    State._id = 0
+    
+    nfa = regex_to_nfa(postfix)
+    normalize_nfa(nfa)
+    
+    pda = nfa_to_pda(nfa)
+    return serialize_pda(pda)
+
+@app.post("/simulate/pda")
+def simulate_pda_api(data: SimulateInput):
+    try:
+        validate_regex(data.regex.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    regex = insert_concatenation(data.regex.strip())
+    postfix = to_postfix(regex)
+    
+    from core.state import State
+    State._id = 0
+    
+    nfa = regex_to_nfa(postfix)
+    normalize_nfa(nfa)
+    
+    pda = nfa_to_pda(nfa)
+    
+    from simulation.pda_simulator import simulate_pda
+    accepted, history = simulate_pda(pda, data.string)
+    
+    return {
+        "accepted": accepted,
+        "steps": history,
+        "nfa": serialize_pda(pda)
+    }
+

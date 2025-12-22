@@ -173,6 +173,7 @@
       <input type="text" id="regex" value="(a|b)*ab" placeholder="e.g. (a|b)*ab">
       <button onclick="buildNFA()">Construct NFA</button>
       <button class="secondary" onclick="buildDFA()">Convert to DFA</button>
+      <button class="secondary" onclick="buildPDA()">Convert to PDA</button>
       <button class="secondary" onclick="buildTM()">Convert to TM</button>
     </div>
 
@@ -182,7 +183,9 @@
       <label>Test Input</label>
       <input type="text" id="inputString" value="aab" placeholder="e.g. aba">
       <button class="secondary" onclick="simulate()">Start Simulation</button>
-      <div id="inputTracker" style="display: flex; gap: 5px; margin-top: 15px; font-family: 'Consolas', monospace; font-size: 1.2rem; justify-content: center; min-height: 1.5em; flex-wrap: wrap;"></div>
+      <div id="inputTracker"
+        style="display: flex; gap: 5px; margin-top: 15px; font-family: 'Consolas', monospace; font-size: 1.2rem; justify-content: center; min-height: 1.5em; flex-wrap: wrap;">
+      </div>
     </div>
 
     <div class="status-panel">
@@ -271,6 +274,34 @@
             height: 1.2em;
         ">Transition: -</div>
     </div>
+  </div>
+
+  <!-- Stack Visualization -->
+  <div id="stack-container" style="
+        position: absolute; 
+        top: 20px; 
+        right: 340px; 
+        display: none; 
+        background: #1e1e1e; 
+        padding: 15px; 
+        border-radius: 8px; 
+        border: 1px solid #444;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        font-family: 'Consolas', monospace;
+        z-index: 1000;
+        width: 120px;
+    ">
+    <div
+      style="text-align: center; color: #ccc; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 5px;">
+      Stack</div>
+    <div id="stack-content" style="
+            display: flex; 
+            flex-direction: column-reverse; 
+            gap: 2px;
+            align-items: center;
+            max-height: 300px;
+            overflow-y: auto;
+        "></div>
   </div>
 
   <style>

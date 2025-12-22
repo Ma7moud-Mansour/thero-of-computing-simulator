@@ -328,8 +328,18 @@ class Renderer {
         txt.setAttribute("font-size", "12");
 
         if (t.read !== undefined) {
+          // TM Label
           txt.textContent = `${t.read} → ${t.write}, ${t.move}`;
           // Resize rect approx
+          const w = txt.textContent.length * 6 + 10;
+          rect.setAttribute("width", w);
+          rect.setAttribute("x", labelX - w / 2);
+        } else if (t.pop !== undefined && t.push !== undefined) {
+          // PDA Label
+          // Use Z0 -> Z0 unless it's a real push/pop (which it isn't in Strict mode, but let's be generic)
+          // Format: input, pop -> push
+          const sym = t.symbol || "ε";
+          txt.textContent = `${sym}, ${t.pop} → ${t.push}`;
           const w = txt.textContent.length * 6 + 10;
           rect.setAttribute("width", w);
           rect.setAttribute("x", labelX - w / 2);
@@ -792,6 +802,13 @@ class Simulator {
       document.getElementById("tape-container").style.display = "none";
     }
 
+    if (this.mode === 'PDA') {
+      document.getElementById("stack-container").style.display = "block";
+      this.renderStack(step.stack || ["Z0"]);
+    } else {
+      document.getElementById("stack-container").style.display = "none";
+    }
+
     if (this.currentStep === this.history.length - 1) {
       let accepted = false;
       let rejected = false;
@@ -800,12 +817,14 @@ class Simulator {
         // TM Checks Exact State
         if (step.state === "q_accept") accepted = true;
         if (step.state === "q_reject") rejected = true;
-        // Also catch implicit reject (no transition) from backend?
-        // Backend logs "REJECTED (No Transition)" if stuck.
+
         if (step.state && step.state.startsWith("REJECTED")) rejected = true;
       } else {
-        // NFA/DFA Check
-        accepted = step.active.some(s => this.nfaData.accept.includes(s));
+        // NFA/DFA/PDA Check
+        // PDA active states effectively same as NFA
+        if (step.active) {
+          accepted = step.active.some(s => this.nfaData.accept.includes(s));
+        }
       }
 
       const statusEl = document.getElementById("statusText");
@@ -838,12 +857,10 @@ class Simulator {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ regex })
       });
+      if (!res.ok) throw new Error((await res.json()).detail);
       const dfa = await res.json();
 
-      // Normalize DFA structure if needed, but we aligned backend to match NFA keys
       this.nfaData = dfa;
-
-      // Recompute layout for DFA WITH EXTRA SPACING
       const layout = this.layoutEngine.compute(this.nfaData, { xSpacing: 350, ySpacing: 250 });
       this.renderer.draw(this.nfaData, layout);
 
@@ -853,9 +870,46 @@ class Simulator {
       document.getElementById("statusText").innerText = "DFA Ready";
       document.getElementById("stepCounter").innerText = "Deterministic Finite Automaton";
 
+      document.getElementById("tape-container").style.display = "none";
+      document.getElementById("stack-container").style.display = "none";
     } catch (e) {
       console.error(e);
-      alert("Error building DFA");
+      alert(e.message || "Error building DFA");
+    }
+  }
+
+  async loadPDA(regex) {
+    try {
+      this.mode = 'PDA';
+      document.getElementById("statusText").innerText = "Building PDA...";
+      const res = await fetch(`${API_BASE}/pda`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regex })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail);
+      }
+      const pda = await res.json();
+
+      this.nfaData = this.normalize(pda);
+      const layout = this.layoutEngine.compute(this.nfaData, { xSpacing: 200, ySpacing: 150 });
+      this.renderer.draw(this.nfaData, layout);
+
+      document.getElementById("tape-container").style.display = "none";
+      document.getElementById("stack-container").style.display = "none";
+
+      this.resetSimulation();
+      this.currentInputString = "";
+      document.getElementById("inputTracker").innerHTML = "";
+
+      document.getElementById("statusText").innerText = "PDA Ready";
+      document.getElementById("stepCounter").innerText = "Strict PDA (NFA Wrapper)";
+
+    } catch (e) {
+      console.error(e);
+      alert(e.message || "Error building PDA");
     }
   }
 
@@ -868,6 +922,7 @@ class Simulator {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ regex })
       });
+      if (!res.ok) throw new Error((await res.json()).detail);
       const tm = await res.json();
 
       this.tmCache = tm;
@@ -884,15 +939,17 @@ class Simulator {
 
       document.getElementById("tape-container").style.display = "block";
       this.renderTape(["_"], 0);
+      document.getElementById("stack-container").style.display = "none";
 
     } catch (e) {
       console.error(e);
-      alert("Error building TM");
+      alert(e.message || "Error building TM");
     }
   }
 
   renderInputTracker(string) {
     const container = document.getElementById("inputTracker");
+    if (!container) return;
     container.innerHTML = "";
     if (!string) {
       const span = document.createElement("span");
@@ -923,7 +980,7 @@ class Simulator {
         span.style.fontWeight = "normal";
         span.style.transform = "scale(1)";
       } else if (i === currentIndex) {
-        span.style.color = "#f1c40f"; // Yellow/Gold for highlight
+        span.style.color = "#f1c40f"; // Yellow/Gold
         span.style.fontWeight = "bold";
         span.style.transform = "scale(1.3)";
       } else {
@@ -936,6 +993,7 @@ class Simulator {
 
   renderTape(tapeChars, headPos) {
     const container = document.getElementById("tape-content");
+    if (!container) return;
     container.innerHTML = "";
 
     // Windowed View: Show e.g., radius=5 cells around head
@@ -961,8 +1019,26 @@ class Simulator {
 
       container.appendChild(cell);
     }
+  }
 
-    // Fade effect logic could be here, but using a fixed window simplifies "infinite" look
+  renderStack(stack) {
+    const container = document.getElementById("stack-content");
+    if (!container) return;
+    container.innerHTML = "";
+    if (!stack || stack.length === 0) {
+      container.innerHTML = "<em>(empty)</em>";
+      return;
+    }
+    // Stack visual: item[0] is bottom ?? Usually visual stack is top at top.
+    // CSS is column-reverse, so first child is at bottom.
+    // If stack list is [bottom, ..., top], then traversing and appending puts bottom at bottom (if column-reverse).
+    // Let's assume stack (from backend) is [Z0].
+    stack.forEach(symbol => {
+      const div = document.createElement("div");
+      div.innerText = symbol;
+      div.style.cssText = "border: 1px solid #555; padding: 5px 10px; background: #252526; color: #fff; width: 80%; text-align: center; border-radius: 4px; font-weight: bold;";
+      container.appendChild(div);
+    });
   }
 
   resetSimulation() {
@@ -979,6 +1055,7 @@ class Simulator {
 // ==========================================
 simulator = new Simulator();
 
+// Global Functions
 window.buildNFA = () => {
   const regex = document.getElementById("regex").value;
   simulator.loadNFA(regex);
@@ -987,6 +1064,11 @@ window.buildNFA = () => {
 window.buildDFA = () => {
   const regex = document.getElementById("regex").value;
   simulator.loadDFA(regex);
+};
+
+window.buildPDA = () => {
+  const regex = document.getElementById("regex").value;
+  simulator.loadPDA(regex);
 };
 
 window.buildTM = () => {
@@ -1002,6 +1084,12 @@ window.simulate = () => {
 
 window.nextStep = () => simulator.next();
 window.prevStep = () => simulator.prev();
+
+// Keyboard Shortcuts
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") simulator.next();
+  if (e.key === "ArrowLeft") simulator.prev();
+});
 
 // Build initial
 window.onload = () => window.buildNFA();
