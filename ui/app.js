@@ -658,7 +658,9 @@ class Simulator {
     this.history = [];
     this.currentStep = 0;
     this.nfaData = null;
-    this.mode = 'NFA'; // 'NFA' or 'DFA'
+    this.mode = 'NFA'; // 'NFA', 'DFA', or 'TM'
+    this.tmCache = null;
+    this.currentInputString = "";
 
     this.layoutEngine = new LayoutEngine();
     this.renderer = new Renderer("canvas");
@@ -679,6 +681,8 @@ class Simulator {
       this.renderer.draw(this.nfaData, layout);
 
       this.resetSimulation();
+      this.currentInputString = "";
+      document.getElementById("inputTracker").innerHTML = "";
     } catch (e) {
       console.error(e);
       alert("Error building NFA");
@@ -691,14 +695,26 @@ class Simulator {
       if (this.mode === 'DFA') endpoint = '/simulate/dfa';
       if (this.mode === 'TM') endpoint = '/simulate/tm';
 
+      let payload = { regex, string };
+      if (this.mode === 'TM') {
+        if (!this.tmCache) {
+          alert("Please construct TM first");
+          return;
+        }
+        payload = { tm: this.tmCache, string };
+      }
+
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ regex, string })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
 
       this.history = data.steps;
+      this.currentInputString = string;
+      this.renderInputTracker(string);
+
       if (this.mode === 'TM') {
         this.nfaData = data.tm;
       } else {
@@ -745,6 +761,15 @@ class Simulator {
     document.getElementById("statusText").innerText = step.description || step.step;
 
     this.renderer.highlight(step.active || [step.state], step.transitions);
+
+    // Update Input Tracker
+    if (this.mode === 'TM') {
+      this.updateInputTracker(step.head);
+    } else {
+      // Step 0 is initial, Step 1 processes char 0, etc.
+      const charIndex = this.currentStep - 1;
+      this.updateInputTracker(charIndex);
+    }
 
     if (this.mode === 'TM') {
       document.getElementById("tape-container").style.display = "block";
@@ -823,6 +848,8 @@ class Simulator {
       this.renderer.draw(this.nfaData, layout);
 
       this.resetSimulation();
+      this.currentInputString = "";
+      document.getElementById("inputTracker").innerHTML = "";
       document.getElementById("statusText").innerText = "DFA Ready";
       document.getElementById("stepCounter").innerText = "Deterministic Finite Automaton";
 
@@ -836,19 +863,22 @@ class Simulator {
     try {
       this.mode = 'TM';
       document.getElementById("statusText").innerText = "Building Turing Machine...";
-      const res = await fetch(`${API_BASE}/tm`, {
+      const res = await fetch(`${API_BASE}/build_tm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ regex })
       });
       const tm = await res.json();
 
+      this.tmCache = tm;
       this.nfaData = tm;
 
       const layout = this.layoutEngine.compute(this.nfaData, { xSpacing: 350, ySpacing: 250 });
       this.renderer.draw(this.nfaData, layout);
 
       this.resetSimulation();
+      this.currentInputString = "";
+      document.getElementById("inputTracker").innerHTML = "";
       document.getElementById("statusText").innerText = "TM Ready";
       document.getElementById("stepCounter").innerText = "Standard Single-Tape TM";
 
@@ -858,6 +888,49 @@ class Simulator {
     } catch (e) {
       console.error(e);
       alert("Error building TM");
+    }
+  }
+
+  renderInputTracker(string) {
+    const container = document.getElementById("inputTracker");
+    container.innerHTML = "";
+    if (!string) {
+      const span = document.createElement("span");
+      span.innerText = "ε";
+      span.style.color = "#777";
+      container.appendChild(span);
+      return;
+    }
+
+    for (let i = 0; i < string.length; i++) {
+      const span = document.createElement("span");
+      span.innerText = string[i];
+      span.id = `tracker-char-${i}`;
+      span.style.padding = "0 2px";
+      span.style.transition = "color 0.2s, transform 0.2s";
+      container.appendChild(span);
+    }
+  }
+
+  updateInputTracker(currentIndex) {
+    const string = this.currentInputString;
+    for (let i = 0; i < string.length; i++) {
+      const span = document.getElementById(`tracker-char-${i}`);
+      if (!span) continue;
+
+      if (i < currentIndex) {
+        span.style.color = "var(--success)"; // Green
+        span.style.fontWeight = "normal";
+        span.style.transform = "scale(1)";
+      } else if (i === currentIndex) {
+        span.style.color = "#f1c40f"; // Yellow/Gold for highlight
+        span.style.fontWeight = "bold";
+        span.style.transform = "scale(1.3)";
+      } else {
+        span.style.color = "#777"; // Gray
+        span.style.fontWeight = "normal";
+        span.style.transform = "scale(1)";
+      }
     }
   }
 

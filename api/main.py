@@ -42,6 +42,10 @@ class SimulateInput(BaseModel):
     regex: str
     string: str
 
+class SimulateTMInput(BaseModel):
+    tm: dict
+    string: str
+
 class CFGInput(BaseModel):
     grammar: dict
     start: str
@@ -192,7 +196,7 @@ def simulate_dfa_api(data: SimulateInput):
     }
 
 
-@app.post("/tm")
+@app.post("/build_tm")
 def build_tm(data: regexInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
@@ -212,29 +216,13 @@ def build_tm(data: regexInput):
     return tm
 
 @app.post("/simulate/tm")
-def simulate_tm_api(data: SimulateInput):
-    regex = insert_concatenation(data.regex.strip())
-    postfix = to_postfix(regex)
-    
-    from core.state import State
-    State._id = 0
-    
-    nfa = regex_to_nfa(postfix)
-    normalize_nfa(nfa)
-    
-    from automata.subset_construction import nfa_to_dfa
-    dfa = nfa_to_dfa(nfa)
-    
-    from automata.dfa_to_tm import dfa_to_tm
-    tm = dfa_to_tm(dfa)
-    
-    from simulation.tm_simulator import simulate_tm
-    accepted, history = simulate_tm(tm, data.string)
-
+def simulate_tm_api(data: SimulateTMInput):
+    # TM is supplied directly; no regex processing needed.
+    accepted, history = simulate_tm(data.tm, data.string)
     return {
         "accepted": accepted,
         "steps": history,
-        "tm": tm
+        "tm": data.tm
     }
 @app.post("/cfg/parse")
 def parse_cfg(data: CFGInput):
