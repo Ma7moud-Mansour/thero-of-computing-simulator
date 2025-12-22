@@ -45,6 +45,9 @@ def parse_with_tree(grammar, string):
                     valid = False
                     break
                 children.append(child)
+            
+            if valid and not production:
+                children.append(ParseTreeNode("ε"))
 
             if valid:
                 node.children = children

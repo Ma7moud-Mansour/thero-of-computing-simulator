@@ -228,13 +228,30 @@ S -> ε</textarea>
       </div>
 
       <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
-        <button onclick="parseCFG()">Parse String (Topic 5)</button>
-        <button class="secondary" onclick="buildCFGPDA()">Convert to PDA (Topic 6)</button>
+        <button onclick="parseCFG()">Parse String</button>
+        <button class="secondary" onclick="buildCFGPDA()">Convert to PDA</button>
       </div>
 
       <div id="cfg-result-box" style="margin-top:20px; padding:10px; background:#1e1e1e; border:1px solid #444;">
         <div style="font-size:0.8rem; color:#aaa;">Result:</div>
         <div id="cfg-result-text" style="color:white; font-weight:bold;">Waiting...</div>
+
+        <!-- Derivation Steps -->
+        <div id="cfg-derivation-steps"
+          style="margin-top:15px; background:#252526; padding:10px; border-radius:4px; font-family: monospace; display:none;">
+          <div style="color:#aaa; border-bottom:1px solid #444; margin-bottom:5px;">Leftmost Derivation:</div>
+          <div id="cfg-derivation-content" style="color:#ce9178; white-space: pre-wrap;"></div>
+        </div>
+
+        <!-- Visual Tree: NOW MOVED TO MAIN CANVAS -->
+        <div
+          style="margin-top:15px; background:#252526; padding:10px; border-radius:4px; font-size:0.9rem; color:#aaa;">
+          <em>Parse Tree will be drawn in the main view →</em>
+        </div>
+
+        <!-- Legacy text tree (hidden or removed, let's keep it as fallback/debug or remove if user wants ONLY visual) -->
+        <!-- User asked for Visual Tree so let's stick to SVG primarily, maybe keep text for debug in console? -->
+        <div id="cfg-tree-display" style="display:none;"></div>
       </div>
     </div>
   </div>

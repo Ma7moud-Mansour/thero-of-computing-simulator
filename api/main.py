@@ -255,8 +255,88 @@ def parse_cfg(data: CFGInput):
             g.add_production(lhs, rhs)
 
     accepted, tree = parse_with_tree(g, data.string)
-    # Return simple boolean for Basic Parser. Detailed tree can be added later if needed.
-    return {"accepted": accepted}
+    
+    derivations = get_leftmost_derivation(tree) if tree else []
+
+    return {
+        "accepted": accepted,
+        "tree": serialize_tree(tree) if tree else None,
+        "derivations": derivations
+    }
+
+def get_leftmost_derivation(root):
+    if not root:
+        return []
+    
+    # Store the current sentential form as a list of Nodes
+    # Initially just the root
+    current_form = [root]
+    history = [ [root.symbol] ] # Store strings
+    
+    # We need to iteratively expand the leftmost non-terminal
+    while True:
+        # Find leftmost non-terminal that has children (and hasn't been expanded in our 'form' view logic)
+        # Actually, extracting derivation from a static tree is slightly distinct from generating it.
+        # In the tree, the structure is already fixed. 
+        # We need to simulate the expansion process.
+        
+        # Easier approach:
+        # Recursive? No, linear steps needed.
+        # We have the tree.
+        # Step 0: S
+        # Step 1: Replace S with its children -> e.g. A B
+        # Step 2: Replace A (leftmost) with its children -> a B
+        # ...
+        
+        # Let's use a list of LogicNodes where LogicNode points to the Tree Node
+        # Loop:
+        #   Find first node in 'current_form' that is a variable AND has children.
+        #   Replace it with its children.
+        #   Record new form.
+        #   If no variables left, stop.
+        
+        change_made = False
+        new_form = []
+        
+        # Find the leftmost expandable node index
+        expand_index = -1
+        for i, node in enumerate(current_form):
+            # Check if it has children (implies it was a variable that got expanded)
+            # Terminals in the tree have no children.
+            if node.children:
+                expand_index = i
+                break
+        
+        if expand_index == -1:
+            break # All terminals
+            
+        # Construct next step
+        # Prefix: 0 to expand_index
+        new_form.extend(current_form[:expand_index])
+        # Expansion: children of the node
+        new_form.extend(current_form[expand_index].children)
+        # Suffix: expand_index+1 to end
+        new_form.extend(current_form[expand_index+1:])
+        
+        current_form = new_form
+        
+        # Record string representation
+        # Filter out epsilons for display, unless it's the ONLY thing (meaning empty string)
+        step_str = [n.symbol for n in current_form if n.symbol != "ε"]
+        if not step_str: 
+            step_str = ["ε"] # Represents empty string
+            
+        history.append(step_str)
+        
+    return [" ".join(h) for h in history]
+
+def serialize_tree(node):
+    if not node:
+        return None
+    return {
+        "symbol": node.symbol,
+        "children": [serialize_tree(child) for child in node.children]
+    }
 
 @app.post("/cfg/pda")
 def build_cfg_pda(data: CFGInput):

@@ -1071,8 +1071,7 @@ window.switchTab = (tab) => {
     document.getElementById('tab-cfg').style.display = 'block';
     document.getElementById('btn-cfg').style.background = '#444';
     document.getElementById('btn-cfg').style.color = 'white';
-
-    // In CFG mode, we might reuse canvas or hide it until PDA is built
+    document.getElementById("canvas").style.display = "block"; // Canvas visible for CFG Treehide it until PDA is built
     // For now, let's keep canvas visible but maybe clear it if user wants
   }
 };
@@ -1160,9 +1159,30 @@ window.parseCFG = async () => {
     const data = await res.json();
 
     const resultDiv = document.getElementById("cfg-result-text");
+    const derivDiv = document.getElementById("cfg-derivation-steps");
+    const derivContent = document.getElementById("cfg-derivation-content");
+    const svg = document.getElementById("canvas");
+
+    // Reset UI
+    derivDiv.style.display = "none";
+    svg.innerHTML = ""; // clear Main Canvas
+
     if (data.accepted) {
       resultDiv.innerText = "Accepted ✅";
       resultDiv.style.color = "#4ec9b0";
+
+      // 1. Show Derivation Steps
+      if (data.derivations && data.derivations.length > 0) {
+        derivDiv.style.display = "block";
+        derivContent.innerText = data.derivations.join("\n↓\n");
+      }
+
+      // 2. Visual Tree
+      if (data.tree) {
+        simulator.renderer.initDefs(); // Ensure definitions exist if we cleared everything
+        drawTree(data.tree, svg);
+      }
+
     } else {
       resultDiv.innerText = "Rejected ❌";
       resultDiv.style.color = "#f44747";
@@ -1172,6 +1192,133 @@ window.parseCFG = async () => {
     document.getElementById("cfg-result-text").innerText = "Error: " + e.message;
   }
 };
+
+function renderTreeText(node, prefix = "", isLeft = true) {
+  if (!node) return "";
+
+  // Simple Indented Representation
+  let result = prefix;
+  result += (prefix.length > 0 ? (isLeft ? "├── " : "└── ") : "") + node.symbol + "\n";
+
+  if (node.children) {
+    for (let i = 0; i < node.children.length; i++) {
+      result += renderTreeText(node.children[i], prefix + (prefix.length > 0 ? (isLeft ? "│   " : "    ") : ""), i < node.children.length - 1);
+    }
+  }
+  return result;
+}
+
+function drawTree(root, svg) {
+  // Simple Reingold-Tilford compliant or just Layered layout
+  // 1. Calculate positions
+  const levels = {};
+  let maxLevel = 0;
+
+  // DFS to assign levels and count nodes at each level for X spacing (simpler than true RT)
+  function traverse(node, depth, offset) {
+    if (!node) return 0;
+    if (!levels[depth]) levels[depth] = [];
+
+    const obj = { node, x: 0, y: depth * 60 + 40, width: 40 };
+    levels[depth].push(obj);
+    maxLevel = Math.max(maxLevel, depth);
+
+    let childWidth = 0;
+    if (node.children) {
+      node.children.forEach(child => {
+        childWidth += traverse(child, depth + 1);
+      });
+    }
+    // Store reference to children in obj later? 
+    // Actually we need a valid tree logic.
+    // Let's use a simpler heuristic:
+    // X is based on inorder traversal index? No, leaf count.
+  }
+
+  // Better approach: Calculate simple tree layout
+  // Check leaf count -> Width
+  function getLeafCount(node) {
+    if (!node.children || node.children.length === 0) return 1;
+    return node.children.reduce((acc, c) => acc + getLeafCount(c), 0);
+  }
+
+  const totalLeaves = getLeafCount(root);
+  const width = totalLeaves * 50;
+  svg.setAttribute("width", Math.max(600, width + 100));
+  svg.setAttribute("height", getDepth(root) * 80 + 100);
+
+  let leafCounter = 0;
+  function assignPositions(node, depth) {
+    if (!node.children || node.children.length === 0) {
+      node._x = leafCounter * 50 + 50;
+      node._y = depth * 80 + 40;
+      leafCounter++;
+      return;
+    }
+
+    node.children.forEach(c => assignPositions(c, depth + 1));
+
+    // Center over children
+    const first = node.children[0];
+    const last = node.children[node.children.length - 1];
+    node._x = (first._x + last._x) / 2;
+    node._y = depth * 80 + 40;
+  }
+
+  function getDepth(node) {
+    if (!node.children || node.children.length === 0) return 1;
+    return 1 + Math.max(...node.children.map(getDepth));
+  }
+
+  assignPositions(root, 0);
+
+  // DRAW
+  // Edges first
+  function drawEdges(node) {
+    if (node.children) {
+      node.children.forEach(c => {
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", node._x);
+        line.setAttribute("y1", node._y + 15); // bottom of source
+        line.setAttribute("x2", c._x);
+        line.setAttribute("y2", c._y - 15); // top of target
+        line.setAttribute("stroke", "#555");
+        line.setAttribute("stroke-width", "2");
+        svg.appendChild(line);
+        drawEdges(c);
+      });
+    }
+  }
+  drawEdges(root);
+
+  // Nodes second
+  function drawNodes(node) {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", node._x);
+    circle.setAttribute("cy", node._y);
+    circle.setAttribute("r", 15);
+    circle.setAttribute("fill", "#1e1e1e");
+    circle.setAttribute("stroke", "#4ec9b0");
+    circle.setAttribute("stroke-width", "2");
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", node._x);
+    text.setAttribute("y", node._y + 5);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("fill", "white");
+    text.setAttribute("font-size", "12px");
+    text.textContent = node.symbol === "" ? "ε" : node.symbol;
+
+    g.appendChild(circle);
+    g.appendChild(text);
+    svg.appendChild(g);
+
+    if (node.children) node.children.forEach(drawNodes);
+  }
+  drawNodes(root);
+}
 
 window.buildCFGPDA = async () => {
   try {
