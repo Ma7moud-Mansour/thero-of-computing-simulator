@@ -1,73 +1,92 @@
 def simulate_tm(tm, input_string):
     """
-    Simulates a Single-Tape Turing Machine.
-    Tape is dynamic.
-    Blank symbol is '_'.
+    Simulates a Deterministic Turing Machine with strict halting conditions.
+    
+    Halting:
+    - Stops IMMEDIATELY upon entering 'q_accept' or 'q_reject'.
+    - Input tape is effectively infinite to the right, filled with '_'.
     """
-    tape = list(input_string) if input_string else ["_"] # Ensure tape has at least one cell if empty? 
-    # Actually empty string input means tape is just blanks? 
-    # Standard: input is written on tape, rest is blanks.
-    # We will simulate valid length.
-    
-    if not input_string:
+    # Initialize Tape
+    # We convert input string to list. Empty string = just blanks.
+    tape = list(input_string) if input_string else []
+    if not tape:
         tape = ["_"]
-    
+        
     head = 0
     current_state = tm["start"]
     history = []
     
     step_count = 0
-    MAX_STEPS = 1000 # Prevent infinite loops
+    MAX_STEPS = 5000 # Safety limit for loops
     
-    # Log Initial State
+    # Explicit Halting States
+    ACCEPT_STATE = "q_accept"
+    REJECT_STATE = "q_reject"
+    
+    # Record Initial State
     history.append({
         "step": step_count,
         "state": current_state,
-        "tape": "".join(tape),
+        "tape": "".join(tape).replace("_", " "), # Visuals prefer space? stick to logic chars
+        "tape_raw": "".join(tape), # raw for frontend logic
         "head": head,
         "description": "Initial State",
-        "active": [current_state], # For graph highlighting
+        "active": [current_state],
         "transitions": []
     })
     
     while step_count < MAX_STEPS:
+        # Check Halting Conditions logic BEFORE reading (standard definition)
+        # Actually standard def: enters state -> halts.
+        if current_state == ACCEPT_STATE or current_state == REJECT_STATE:
+            break
+
         step_count += 1
         
         # 1. Read Symbol
         if head < len(tape) and head >= 0:
-            char_under_head = tape[head]
+            char_read = tape[head]
         else:
-            char_under_head = "_" # Blank
+            char_read = "_" # Explicit Blank
+            # Dynamically extend tape for visualization if we went past bounds
+            if head >= len(tape):
+                tape.append("_")
             
         # 2. Find Transition
         transition = None
         for t in tm["transitions"]:
-            if t["from"] == current_state and t["read"] == char_under_head:
+            if t["from"] == current_state and t["read"] == char_read:
                 transition = t
                 break
         
-        # If no transition found for explicit blank or symbol, check Halt condition
+        # Implicit Rejection (No transition defined)
         if not transition:
-            # If current state is accept, we accept.
-            # But usually TM halts -> Output.
-            # Here we just stop.
-            break
-            
-        # 3. Execute Transition
+            # Transition to implicit reject, or just break?
+            # User wants: "Missing transitions imply rejection"
+            # We'll treat getting stuck as a reject outcome, but to show it distinctively:
+            history.append({
+                "step": step_count,
+                "state": "REJECTED (No Transition)",
+                "tape": "".join(tape),
+                "head": head,
+                "description": f"No transition for ({current_state}, '{char_read}') -> Halt & Reject",
+                "active": [],
+                "transitions": []
+            })
+            return False, history
+
+        # 3. Apply Transition
         # Write
-        if head < len(tape) and head >= 0:
-            tape[head] = transition["write"]
-        elif head >= len(tape):
-            # Extend tape to right
-            tape.append(transition["write"])
-            
+        tape[head] = transition["write"]
+        
         # Move
-        move_dir = transition["move"]
-        if move_dir == "R":
+        direction = transition["move"]
+        if direction == "R":
             head += 1
-        elif move_dir == "L":
+        elif direction == "L":
             head -= 1
-            
+            if head < 0: head = 0 # Standard semi-infinite tape? Left bounded.
+        
         prev_state = current_state
         current_state = transition["to"]
         
@@ -75,26 +94,22 @@ def simulate_tm(tm, input_string):
         history.append({
             "step": step_count,
             "state": current_state,
-            "tape": "".join(tape).replace("_", " "), # Visual clean up? Or keep _? Let's keep _ for logic, replace in UI if needed. actually UI expects string.
+            "tape": "".join(tape), # For simple view
             "head": head,
-            "description": f"Read '{transition['read']}' → Write '{transition['write']}', Move {move_dir}",
+            "description": f"Read '{transition['read']}' → '{transition['write']}', {direction}",
             "active": [current_state],
             "transitions": [{
                 "from": prev_state,
                 "to": current_state,
-                "label": f"{transition['read']} → {transition['write']}, {move_dir}"
+                "label": f"{transition['read']} → {transition['write']}, {direction}"
             }]
         })
         
-        # Check explicit accept halt (DFA-TM halts when entering accept? or consumes input?)
-        # Since this is a DFA-converted TM, it mimics DFA. It consumes the string.
-        # It will likely halt when it reads the blank after the string.
-        # But our transition table only has alphabet symbols.
-        # So it will Halt as soon as it reads '_'.
-        
-    accepted = current_state in tm["accept"]
-    
-    # Final cleanup: If we halted because we ran out of transitions (read blank), 
-    # check if we are in accept state.
-    
+        # Immediate Check after transition (for loop termination)
+        if current_state == ACCEPT_STATE:
+            break
+        if current_state == REJECT_STATE:
+            break
+
+    accepted = (current_state == ACCEPT_STATE)
     return accepted, history

@@ -200,21 +200,103 @@
     <div class="tooltip" id="tooltip"></div>
 
     <!-- Tape Visualization -->
+    <!-- Tape Visualization (Sipser Style) -->
     <div id="tape-container" style="
         position: absolute; 
         bottom: 20px; 
         left: 50%; 
         transform: translateX(-50%);
         display: none; 
-        background: #252526; 
-        padding: 10px; 
+        background: #1e1e1e; 
+        padding: 15px; 
         border-radius: 8px; 
         border: 1px solid #444;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        font-family: 'Consolas', monospace;
+        z-index: 1000;
+        min-width: 400px;
     ">
-      <div style="color: #aaa; font-size: 0.8rem; margin-bottom: 5px; text-align: center;">TURING MACHINE TAPE</div>
-      <div id="tape-content" style="display: flex; gap: 2px;"></div>
+      <!-- Info Panel -->
+      <div
+        style="display: flex; justify-content: space-between; margin-bottom: 10px; color: #ccc; font-size: 0.9rem; border-bottom: 1px solid #333; padding-bottom: 5px;">
+        <span id="tm-time">Time: 0</span>
+        <span id="tm-state">State: q0</span>
+      </div>
+
+      <!-- Tape Window -->
+      <div style="
+            position: relative; 
+            overflow: hidden; 
+            white-space: nowrap; 
+            padding: 20px 0; 
+            background: #252526; 
+            border: 1px solid #333;
+            border-radius: 4px;
+        ">
+        <!-- Top Head Marker -->
+        <div style="
+                position: absolute; 
+                left: 50%; 
+                top: 2px; 
+                transform: translateX(-50%);
+                color: #4ec9b0; 
+                font-size: 1rem;
+            ">▼</div>
+
+        <!-- Tape Strip -->
+        <div id="tape-content" style="
+                display: flex; 
+                justify-content: center; 
+                transition: transform 0.2s ease;
+            "></div>
+
+        <!-- Bottom Head Marker -->
+        <div style="
+                position: absolute; 
+                left: 50%; 
+                bottom: 0px; 
+                transform: translateX(-50%);
+                color: #4ec9b0; 
+                font-size: 1rem;
+            ">▲</div>
+      </div>
+
+      <!-- Transistion Info -->
+      <div id="tm-transition" style="
+            margin-top: 10px; 
+            text-align: center; 
+            color: #4ec9b0; 
+            font-size: 0.95rem; 
+            height: 1.2em;
+        ">Transition: -</div>
     </div>
+  </div>
+
+  <style>
+    .tape-cell {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #555;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      background: #ffffff;
+      color: #000000;
+      margin: 0 2px;
+      flex-shrink: 0;
+      font-weight: bold;
+    }
+
+    .tape-cell.blank {
+      color: #ccc;
+    }
+
+    .tape-cell.active {
+      border: 2px solid #4ec9b0;
+      box-shadow: 0 0 8px rgba(78, 201, 176, 0.3);
+    }
+  </style>
   </div>
 
   <script src="/static/app.js"></script>

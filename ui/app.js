@@ -171,8 +171,15 @@ class Renderer {
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("id", `state-${name}`);
     g.setAttribute("class", "state-group");
-    g.setAttribute("class", "state-group");
     g.style.cursor = "grab";
+
+    // Colors
+    let strokeColor = "#9cdcfe"; // Default Blue
+    if (isAccept) strokeColor = "#4ec9b0"; // Green (if marked accept in NFA/DFA)
+
+    // Explicit TM States
+    if (name === "q_accept") strokeColor = "#4ec9b0";
+    else if (name === "q_reject") strokeColor = "#f44747";
 
     // Drag start listener
     g.addEventListener("mousedown", (e) => this.handleMouseDown(e, name));
@@ -180,18 +187,14 @@ class Renderer {
     // Start Indicator
     if (isStart) {
       const arrow = document.createElementNS("http://www.w3.org/2000/svg", "path");
-
-      // Calculate start arrow position relative to boundary
-      // Node is at pos.x, radius 20. Start arrow should end at pos.x - 20
-      // We simulate a source point 60px to the left of center
       const sourcePt = { x: pos.x - 60, y: pos.y };
-      const boundaryPt = this.getBoundaryPoint(pos, sourcePt, 22); // 20 + 2 padding
+      const boundaryPt = this.getBoundaryPoint(pos, sourcePt, 22);
 
       arrow.setAttribute("d", `M ${sourcePt.x} ${sourcePt.y} L ${boundaryPt.x} ${boundaryPt.y}`);
       arrow.setAttribute("stroke", "#4ec9b0");
       arrow.setAttribute("stroke-width", "3");
       arrow.setAttribute("marker-end", "url(#arrow-active)");
-      this.svg.appendChild(arrow);
+      g.appendChild(arrow);
     }
 
     // Outer Circle
@@ -200,18 +203,19 @@ class Renderer {
     circle.setAttribute("cy", pos.y);
     circle.setAttribute("r", 20);
     circle.setAttribute("fill", "#252526");
-    circle.setAttribute("stroke", isAccept ? "#4ec9b0" : "#9cdcfe");
+    circle.setAttribute("stroke", strokeColor);
     circle.setAttribute("stroke-width", "3");
     g.appendChild(circle);
 
     // Inner Circle (Accept)
-    if (isAccept) {
+    // Show inner circle for regular accepted states OR q_accept
+    if (isAccept || name === "q_accept") {
       const inner = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       inner.setAttribute("cx", pos.x);
       inner.setAttribute("cy", pos.y);
       inner.setAttribute("r", 15);
       inner.setAttribute("fill", "none");
-      inner.setAttribute("stroke", "#4ec9b0");
+      inner.setAttribute("stroke", strokeColor);
       inner.setAttribute("stroke-width", "2");
       g.appendChild(inner);
     }
@@ -322,7 +326,17 @@ class Renderer {
         txt.setAttribute("text-anchor", "middle");
         txt.setAttribute("fill", "#ddd");
         txt.setAttribute("font-size", "12");
-        txt.textContent = t.symbol;
+
+        if (t.read !== undefined) {
+          txt.textContent = `${t.read} → ${t.write}, ${t.move}`;
+          // Resize rect approx
+          const w = txt.textContent.length * 6 + 10;
+          rect.setAttribute("width", w);
+          rect.setAttribute("x", labelX - w / 2);
+        } else {
+          txt.textContent = t.symbol;
+        }
+
         labelGroup.appendChild(txt);
 
         this.svg.appendChild(labelGroup);
@@ -736,21 +750,54 @@ class Simulator {
       document.getElementById("tape-container").style.display = "block";
       const tapeArr = step.tape ? step.tape.split('') : ["_"];
       this.renderTape(tapeArr, step.head);
+
+      // Update Info Panel
+      document.getElementById("tm-time").innerText = `Time: ${this.currentStep}`;
+      document.getElementById("tm-state").innerText = `State: ${step.state}`;
+
+      const t = step.transitions && step.transitions[0];
+      if (t) {
+        document.getElementById("tm-transition").innerText = `Transition: ${t.label}`;
+      } else if (this.currentStep === 0) {
+        document.getElementById("tm-transition").innerText = `Start Configuration`;
+      } else {
+        document.getElementById("tm-transition").innerText = `Halted`;
+      }
     } else {
       document.getElementById("tape-container").style.display = "none";
     }
 
     if (this.currentStep === this.history.length - 1) {
-      const accepted = (this.mode === 'TM') ? (step.state && this.nfaData.accept.includes(step.state)) :
-        step.active.some(s => this.nfaData.accept.includes(s));
+      let accepted = false;
+      let rejected = false;
+
+      if (this.mode === 'TM') {
+        // TM Checks Exact State
+        if (step.state === "q_accept") accepted = true;
+        if (step.state === "q_reject") rejected = true;
+        // Also catch implicit reject (no transition) from backend?
+        // Backend logs "REJECTED (No Transition)" if stuck.
+        if (step.state && step.state.startsWith("REJECTED")) rejected = true;
+      } else {
+        // NFA/DFA Check
+        accepted = step.active.some(s => this.nfaData.accept.includes(s));
+      }
 
       const statusEl = document.getElementById("statusText");
       if (accepted) {
-        statusEl.innerText = "Accepted ✅";
+        statusEl.innerText = "Halted & Accepted ✅";
         statusEl.style.color = "#4ec9b0";
-      } else {
-        statusEl.innerText = "Rejected ❌";
+      } else if (rejected) {
+        statusEl.innerText = "Halted & Rejected ❌";
         statusEl.style.color = "#f44747";
+      } else {
+        if (this.mode === 'TM') {
+          statusEl.innerText = "Stopped (Limit Reached) ⚠️";
+          statusEl.style.color = "#dcdcaa";
+        } else {
+          statusEl.innerText = "Rejected ❌";
+          statusEl.style.color = "#f44747";
+        }
       }
     } else {
       document.getElementById("statusText").style.color = "#d4d4d4";
@@ -818,26 +865,31 @@ class Simulator {
     const container = document.getElementById("tape-content");
     container.innerHTML = "";
 
-    tapeChars.forEach((char, i) => {
+    // Windowed View: Show e.g., radius=5 cells around head
+    const radius = 6;
+    for (let i = headPos - radius; i <= headPos + radius; i++) {
       const cell = document.createElement("div");
-      cell.style.width = "30px";
-      cell.style.height = "30px";
-      cell.style.border = "1px solid #555";
-      cell.style.display = "flex";
-      cell.style.alignItems = "center";
-      cell.style.justifyContent = "center";
-      cell.style.fontSize = "1.1rem";
-      cell.style.fontFamily = "monospace";
-      cell.style.background = i === headPos ? "#264f78" : "#1e1e1e";
-      cell.innerText = char === "_" ? "␣" : char;
+      cell.className = "tape-cell";
+
+      // Determine content
+      let char = "_";
+      if (i >= 0 && i < tapeChars.length) char = tapeChars[i];
+
+      if (char === "_") {
+        cell.classList.add("blank");
+        cell.innerText = "␣";
+      } else {
+        cell.innerText = char;
+      }
 
       if (i === headPos) {
-        cell.style.border = "2px solid #007acc";
-        cell.style.boxShadow = "0 0 5px #007acc";
+        cell.classList.add("active");
       }
 
       container.appendChild(cell);
-    });
+    }
+
+    // Fade effect logic could be here, but using a fixed window simplifies "infinite" look
   }
 
   resetSimulation() {
