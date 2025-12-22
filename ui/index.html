@@ -166,35 +166,75 @@
 <body>
 
   <div class="sidebar">
-    <h1>NFA Studio</h1>
+    <h1>Theory Studio</h1>
 
-    <div class="control-group">
-      <label>Regular Expression</label>
-      <input type="text" id="regex" value="(a|b)*ab" placeholder="e.g. (a|b)*ab">
-      <button onclick="buildNFA()">Construct NFA</button>
-      <button class="secondary" onclick="buildDFA()">Convert to DFA</button>
-      <button class="secondary" onclick="buildPDA()">Convert to PDA</button>
-      <button class="secondary" onclick="buildTM()">Convert to TM</button>
+    <!-- TABS -->
+    <div class="tabs" style="display:flex; margin-bottom:15px; background:#252526; padding:5px; border-radius:4px;">
+      <button class="tab-btn active" id="btn-regex"
+        style="flex:1; background:#444; border:none; color:white; padding:8px; cursor:pointer;"
+        onclick="switchTab('regex')">Regex Lab</button>
+      <button class="tab-btn" id="btn-cfg"
+        style="flex:1; background:transparent; border:none; color:#aaa; padding:8px; cursor:pointer;"
+        onclick="switchTab('cfg')">CFG Lab</button>
     </div>
 
-    <hr style="border: 0; border-top: 1px solid #444; width: 100%;">
+    <!-- REGEX TAB CONTENT -->
+    <div id="tab-regex" class="tab-content">
+      <div class="control-group">
+        <label>Regular Expression</label>
+        <input type="text" id="regex" value="(a|b)*ab" placeholder="e.g. (a|b)*ab">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:5px;">
+          <button onclick="buildNFA()">NFA</button>
+          <button class="secondary" onclick="buildDFA()">DFA</button>
+          <button class="secondary" onclick="buildPDA()">PDA</button>
+          <button class="secondary" onclick="buildTM()">TM</button>
+        </div>
+      </div>
 
-    <div class="control-group">
-      <label>Test Input</label>
-      <input type="text" id="inputString" value="aab" placeholder="e.g. aba">
-      <button class="secondary" onclick="simulate()">Start Simulation</button>
-      <div id="inputTracker"
-        style="display: flex; gap: 5px; margin-top: 15px; font-family: 'Consolas', monospace; font-size: 1.2rem; justify-content: center; min-height: 1.5em; flex-wrap: wrap;">
+      <hr style="border: 0; border-top: 1px solid #444; width: 100%;">
+
+      <div class="control-group">
+        <label>Test Input</label>
+        <input type="text" id="inputString" value="aab" placeholder="e.g. aba">
+        <button class="secondary" onclick="simulate()" style="width:100%; margin-top:5px;">Simulate</button>
+        <div id="inputTracker"
+          style="display: flex; gap: 5px; margin-top: 15px; font-family: 'Consolas', monospace; font-size: 1.2rem; justify-content: center; min-height: 1.5em; flex-wrap: wrap;">
+        </div>
+      </div>
+
+      <div class="status-panel">
+        <div class="step-counter" id="stepCounter">Ready to simulate</div>
+        <div class="status-text" id="statusText">Waiting...</div>
+
+        <div class="playback-controls">
+          <button class="secondary" onclick="prevStep()">◀ Prev</button>
+          <button class="secondary" onclick="nextStep()">Next ▶</button>
+        </div>
       </div>
     </div>
 
-    <div class="status-panel">
-      <div class="step-counter" id="stepCounter">Ready to simulate</div>
-      <div class="status-text" id="statusText">Waiting...</div>
+    <!-- CFG TAB CONTENT -->
+    <div id="tab-cfg" class="tab-content" style="display:none;">
+      <div class="control-group">
+        <label>Context-Free Grammar (Start: S)</label>
+        <textarea id="grammarInput" rows="6"
+          style="width:100%; background:#252526; color:white; border:1px solid #444; padding:5px;">S -> a S b
+S -> ε</textarea>
+      </div>
 
-      <div class="playback-controls">
-        <button class="secondary" onclick="prevStep()">◀ Prev</button>
-        <button class="secondary" onclick="nextStep()">Next ▶</button>
+      <div class="control-group">
+        <label>Test String</label>
+        <input type="text" id="cfgInputString" value="" placeholder="e.g. ab">
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
+        <button onclick="parseCFG()">Parse String (Topic 5)</button>
+        <button class="secondary" onclick="buildCFGPDA()">Convert to PDA (Topic 6)</button>
+      </div>
+
+      <div id="cfg-result-box" style="margin-top:20px; padding:10px; background:#1e1e1e; border:1px solid #444;">
+        <div style="font-size:0.8rem; color:#aaa;">Result:</div>
+        <div id="cfg-result-text" style="color:white; font-weight:bold;">Waiting...</div>
       </div>
     </div>
   </div>

@@ -704,6 +704,7 @@ class Simulator {
       let endpoint = '/simulate/nfa';
       if (this.mode === 'DFA') endpoint = '/simulate/dfa';
       if (this.mode === 'TM') endpoint = '/simulate/tm';
+      if (this.mode === 'PDA') endpoint = '/simulate/pda';
 
       let payload = { regex, string };
       if (this.mode === 'TM') {
@@ -725,16 +726,10 @@ class Simulator {
       this.currentInputString = string;
       this.renderInputTracker(string);
 
-      if (this.mode === 'TM') {
-        this.nfaData = data.tm;
-      } else {
-        this.nfaData = this.normalize(data.nfa); // Sync structure
-      }
-
-      // Redraw to ensure consistency
-      const spacing = (this.mode === 'DFA' || this.mode === 'TM') ? { xSpacing: 350, ySpacing: 250 } : {};
-      const layout = this.layoutEngine.compute(this.nfaData, spacing);
-      this.renderer.draw(this.nfaData, layout);
+      // CRITICAL: DO NOT Update Data or Redraw Graph
+      // The graph (NFA/DFA/PDA/TM) is static during simulation.
+      // this.nfaData = ... (REMOVED)
+      // this.renderer.draw(...) (REMOVED)
 
       this.currentStep = 0;
       this.updateView();
@@ -1055,6 +1050,33 @@ class Simulator {
 // ==========================================
 simulator = new Simulator();
 
+// Tab Logic
+window.switchTab = (tab) => {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.style.background = 'transparent';
+    btn.style.color = '#aaa';
+    if (btn.className.includes('active')) btn.classList.remove('active'); // fallback
+  });
+
+  if (tab === 'regex') {
+    document.getElementById('tab-regex').style.display = 'block';
+    document.getElementById('btn-regex').style.background = '#444';
+    document.getElementById('btn-regex').style.color = 'white';
+
+    // Show correct canvas
+    document.getElementById("canvas").style.display = "block";
+
+  } else if (tab === 'cfg') {
+    document.getElementById('tab-cfg').style.display = 'block';
+    document.getElementById('btn-cfg').style.background = '#444';
+    document.getElementById('btn-cfg').style.color = 'white';
+
+    // In CFG mode, we might reuse canvas or hide it until PDA is built
+    // For now, let's keep canvas visible but maybe clear it if user wants
+  }
+};
+
 // Global Functions
 window.buildNFA = () => {
   const regex = document.getElementById("regex").value;
@@ -1085,6 +1107,105 @@ window.simulate = () => {
 window.nextStep = () => simulator.next();
 window.prevStep = () => simulator.prev();
 
+// CFG Functions
+// Helper to parse textarea
+function parseGrammarInput() {
+  const raw = document.getElementById("grammarInput").value.trim();
+  const lines = raw.split('\n');
+  const grammar = {};
+  let start = null;
+
+  lines.forEach(line => {
+    if (!line.trim()) return;
+    // Format: S -> a S b | epsilon
+    const parts = line.split('->');
+    if (parts.length < 2) return;
+
+    const lhs = parts[0].trim();
+    if (!start) start = lhs;
+
+    const rhsParts = parts[1].split('|');
+    if (!grammar[lhs]) grammar[lhs] = [];
+
+    rhsParts.forEach(r => {
+      let production = r.trim();
+      if (production === 'ε' || production === 'epsilon') {
+        grammar[lhs].push(""); // empty string
+      } else {
+        // Split by spaces? Or chars? 
+        // Project requirement usually implies single char terminals unless space separated.
+        // Let's assume space separated for safety, or chars if no spaces.
+        // Ideally backend handles this. Let's send list of strings.
+        // For simplicity here, let's split by space if spaces exist, else chars.
+        if (production.includes(' ')) {
+          grammar[lhs].push(production.split(/\s+/));
+        } else {
+          grammar[lhs].push(production.split(''));
+        }
+      }
+    });
+  });
+  return { grammar, start };
+}
+
+window.parseCFG = async () => {
+  try {
+    const { grammar, start } = parseGrammarInput();
+    const string = document.getElementById("cfgInputString").value;
+    const res = await fetch(`${API_BASE}/cfg/parse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grammar, start, string })
+    });
+    const data = await res.json();
+
+    const resultDiv = document.getElementById("cfg-result-text");
+    if (data.accepted) {
+      resultDiv.innerText = "Accepted ✅";
+      resultDiv.style.color = "#4ec9b0";
+    } else {
+      resultDiv.innerText = "Rejected ❌";
+      resultDiv.style.color = "#f44747";
+    }
+  } catch (e) {
+    console.error(e);
+    document.getElementById("cfg-result-text").innerText = "Error: " + e.message;
+  }
+};
+
+window.buildCFGPDA = async () => {
+  try {
+    const { grammar, start } = parseGrammarInput();
+    // Since we are reusing the simulator graph logic, we can load it into the renderer
+    // But we need a separate endpoint for getting the PDA structure from CFG
+    const res = await fetch(`${API_BASE}/cfg/pda`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ grammar, start, string: "" }) // String not needed for build
+    });
+    const pda = await res.json();
+
+    // Render this PDA
+    // We reuse simulator.normalize and renderer.draw
+    // Access simulator instance
+
+    // Switch to PDA mode visualization logic
+    // We use the same canvas.
+    simulator.mode = 'PDA';
+    simulator.nfaData = simulator.normalize(pda);
+
+    const layout = simulator.layoutEngine.compute(simulator.nfaData, { xSpacing: 250, ySpacing: 150 });
+    simulator.renderer.draw(simulator.nfaData, layout);
+
+    document.getElementById("cfg-result-text").innerText = "PDA Constructed (See Graph)";
+    document.getElementById("cfg-result-text").style.color = "#dcdcaa";
+
+  } catch (e) {
+    console.error(e);
+    alert("Error building PDA");
+  }
+};
+
 // Keyboard Shortcuts
 document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") simulator.next();
@@ -1092,4 +1213,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Build initial
-window.onload = () => window.buildNFA();
+window.onload = () => {
+  window.buildNFA();
+  window.switchTab('regex'); // Default
+};

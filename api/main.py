@@ -161,8 +161,7 @@ def simulate_nfa_api(data: SimulateInput):
 
     return {
         "accepted": accepted,
-        "steps": history,
-        "nfa": serialize_nfa(nfa)
+        "steps": history
     }
 
 @app.post("/dfa")
@@ -212,8 +211,7 @@ def simulate_dfa_api(data: SimulateInput):
     
     return {
         "accepted": accepted,
-        "steps": history,
-        "nfa": dfa
+        "steps": history
     }
 
 
@@ -247,8 +245,7 @@ def simulate_tm_api(data: SimulateTMInput):
     accepted, history = simulate_tm(data.tm, data.string)
     return {
         "accepted": accepted,
-        "steps": history,
-        "tm": data.tm
+        "steps": history
     }
 @app.post("/cfg/parse")
 def parse_cfg(data: CFGInput):
@@ -258,7 +255,21 @@ def parse_cfg(data: CFGInput):
             g.add_production(lhs, rhs)
 
     accepted, tree = parse_with_tree(g, data.string)
+    # Return simple boolean for Basic Parser. Detailed tree can be added later if needed.
     return {"accepted": accepted}
+
+@app.post("/cfg/pda")
+def build_cfg_pda(data: CFGInput):
+    # Reconstruct Grammar object ? Or just pass dict directly if cfg_to_pda accepts dict?
+    # cfg_to_pda expects a Grammar entry.
+    g = Grammar(data.start)
+    for lhs, rhss in data.grammar.items():
+        for rhs in rhss:
+            g.add_production(lhs, rhs)
+            
+    pda = cfg_to_pda(g)
+    # Serialize using general PDA serializer
+    return serialize_pda(pda)
 
 #------------------------------------------
 def serialize_pda(pda):
@@ -322,7 +333,6 @@ def simulate_pda_api(data: SimulateInput):
     
     return {
         "accepted": accepted,
-        "steps": history,
-        "nfa": serialize_pda(pda)
+        "steps": history
     }
 
