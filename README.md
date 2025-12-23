@@ -26,7 +26,7 @@ The simulator uses a Python FastAPI backend to handle logic.
 Run the following command in the project directory:
 
 ```bash
-uvicorn api.main:app --reload
+python -m uvicorn api.main:app --reload
 ```
 
 You should see output indicating the server is running at `http://127.0.0.1:8000`.
