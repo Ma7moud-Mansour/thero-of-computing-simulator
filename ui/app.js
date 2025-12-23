@@ -705,6 +705,7 @@ class Simulator {
       if (this.mode === 'DFA') endpoint = '/simulate/dfa';
       if (this.mode === 'TM') endpoint = '/simulate/tm';
       if (this.mode === 'PDA') endpoint = '/simulate/pda';
+      if (this.mode === 'CFG_PDA') endpoint = '/simulate/cfg/pda';
 
       let payload = { regex, string };
       if (this.mode === 'TM') {
@@ -713,6 +714,15 @@ class Simulator {
           return;
         }
         payload = { tm: this.tmCache, string };
+      }
+      if (this.mode === 'CFG_PDA') {
+        // Need grammar and start symbol
+        // We can cache them in `this.cfgCache` when building PDA
+        if (!this.cfgCache) {
+          alert("Please construct PDA from CFG first");
+          return;
+        }
+        payload = { ...this.cfgCache, string };
       }
 
       const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -767,6 +777,22 @@ class Simulator {
 
     this.renderer.highlight(step.active || [step.state], step.transitions);
 
+    // Update Text Elements
+    // If in CFG mode, update cfg specific elements if needed, or share IDs?
+    // The Status Text and Step Counter are shared IDs if we didn't duplicate them.
+    // In index.html, we created `cfgStepCounter` and `cfgStatusText` for CFG tab.
+    // We should update those if in CFG mode.
+
+    if (this.mode === 'CFG_PDA') {
+      const sc = document.getElementById("cfgStepCounter");
+      const st = document.getElementById("cfgStatusText");
+      if (sc) sc.innerText = `Step ${this.currentStep + 1} / ${this.history.length}`;
+      if (st) st.innerText = step.description || step.step;
+    } else {
+      document.getElementById("stepCounter").innerText = `Step ${this.currentStep + 1} / ${this.history.length}`;
+      document.getElementById("statusText").innerText = step.description || step.step;
+    }
+
     // Update Input Tracker
     if (this.mode === 'TM') {
       this.updateInputTracker(step.head);
@@ -797,7 +823,7 @@ class Simulator {
       document.getElementById("tape-container").style.display = "none";
     }
 
-    if (this.mode === 'PDA') {
+    if (this.mode === 'PDA' || this.mode === 'CFG_PDA') {
       document.getElementById("stack-container").style.display = "block";
       this.renderStack(step.stack || ["Z0"]);
     } else {
@@ -817,12 +843,14 @@ class Simulator {
       } else {
         // NFA/DFA/PDA Check
         // PDA active states effectively same as NFA
+        // For CFG PDA, we check acceptance by empty stack or accept state?
+        // Our backend simulate_general_pda checks accept state.
         if (step.active) {
           accepted = step.active.some(s => this.nfaData.accept.includes(s));
         }
       }
 
-      const statusEl = document.getElementById("statusText");
+      const statusEl = (this.mode === 'CFG_PDA') ? document.getElementById("cfgStatusText") : document.getElementById("statusText");
       if (accepted) {
         statusEl.innerText = "Halted & Accepted ✅";
         statusEl.style.color = "#4ec9b0";
@@ -839,7 +867,8 @@ class Simulator {
         }
       }
     } else {
-      document.getElementById("statusText").style.color = "#d4d4d4";
+      const statusEl = (this.mode === 'CFG_PDA') ? document.getElementById("cfgStatusText") : document.getElementById("statusText");
+      statusEl.style.color = "#d4d4d4";
     }
   }
 
@@ -943,7 +972,10 @@ class Simulator {
   }
 
   renderInputTracker(string) {
-    const container = document.getElementById("inputTracker");
+    let containerId = "inputTracker";
+    if (this.mode === 'CFG_PDA') containerId = "inputTrackerCFG";
+
+    const container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = "";
     if (!string) {
@@ -1338,7 +1370,8 @@ window.buildCFGPDA = async () => {
 
     // Switch to PDA mode visualization logic
     // We use the same canvas.
-    simulator.mode = 'PDA';
+    simulator.mode = 'CFG_PDA';
+    simulator.cfgCache = { grammar, start }; // Cache for simulation
     simulator.nfaData = simulator.normalize(pda);
 
     const layout = simulator.layoutEngine.compute(simulator.nfaData, { xSpacing: 250, ySpacing: 150 });
@@ -1347,10 +1380,24 @@ window.buildCFGPDA = async () => {
     document.getElementById("cfg-result-text").innerText = "PDA Constructed (See Graph)";
     document.getElementById("cfg-result-text").style.color = "#dcdcaa";
 
+    // Show Controls
+    document.getElementById("cfg-status-panel").style.display = "block";
+    document.getElementById("tape-container").style.display = "none";
+    document.getElementById("stack-container").style.display = "none"; // Hide initially until sim starts
+
+    simulator.resetSimulation();
+    simulator.renderInputTracker("");
+
   } catch (e) {
     console.error(e);
     alert("Error building PDA");
   }
+};
+
+window.simulateCFG = () => {
+  const str = document.getElementById("cfgInputString").value;
+  // Regex arg is ignored for CFG_PDA mode
+  simulator.runSimulation(null, str);
 };
 
 // Keyboard Shortcuts

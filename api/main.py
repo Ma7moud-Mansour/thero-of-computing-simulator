@@ -408,7 +408,7 @@ def simulate_pda_api(data: SimulateInput):
     
     pda = nfa_to_pda(nfa)
     
-    from simulation.pda_simulator import simulate_pda
+    from simulation.pda_simulator import simulate_pda, simulate_general_pda
     accepted, history = simulate_pda(pda, data.string)
     
     return {
@@ -416,3 +416,20 @@ def simulate_pda_api(data: SimulateInput):
         "steps": history
     }
 
+
+@app.post("/simulate/cfg/pda")
+def simulate_cfg_pda(data: CFGInput):
+    g = Grammar(data.start)
+    for lhs, rhss in data.grammar.items():
+        for rhs in rhss:
+            g.add_production(lhs, rhs)
+            
+    pda = cfg_to_pda(g)
+    
+    from simulation.pda_simulator import simulate_general_pda
+    accepted, history = simulate_general_pda(pda, data.string, accept_by_empty_stack=True)
+    
+    return {
+        "accepted": accepted,
+        "steps": history
+    }

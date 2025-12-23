@@ -230,6 +230,22 @@ S -> ε</textarea>
       <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
         <button onclick="parseCFG()">Parse String</button>
         <button class="secondary" onclick="buildCFGPDA()">Convert to PDA</button>
+        <button class="secondary" onclick="simulateCFG()">Simulate PDA</button>
+      </div>
+
+      <div class="status-panel" id="cfg-status-panel" style="margin-top:20px; display:none;">
+        <div class="step-counter" id="cfgStepCounter">Ready to simulate</div>
+        <div class="status-text" id="cfgStatusText">Waiting...</div>
+
+        <!-- Input Tracker for CFG -->
+        <div id="inputTrackerCFG"
+          style="display: flex; gap: 5px; margin-top: 15px; font-family: 'Consolas', monospace; font-size: 1.2rem; justify-content: center; min-height: 1.5em; flex-wrap: wrap;">
+        </div>
+
+        <div class="playback-controls">
+          <button class="secondary" onclick="prevStep()">◀ Prev</button>
+          <button class="secondary" onclick="nextStep()">Next ▶</button>
+        </div>
       </div>
 
       <div id="cfg-result-box" style="margin-top:20px; padding:10px; background:#1e1e1e; border:1px solid #444;">

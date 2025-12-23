@@ -1,8 +1,9 @@
 from automata.pda import PDA
+from core.state import State
 
 def cfg_to_pda(grammar):
     pda = PDA()
-    q = "q"
+    q = State("q")
 
     pda.states.add(q)
     pda.start_state = q
