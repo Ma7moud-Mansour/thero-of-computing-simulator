@@ -2,40 +2,17 @@ from core.state import State
 from automata.nfa import NFA
 
 class Fragment:
-    """
-    Represents a partial NFA with a single start state and a set of accept states.
-    For strict Thompson, usually there is exactly one accept state, but we support a set 
-    just in case, which is then connected to the next state via integers.
-    """
+
     def __init__(self, start, accepts):
         self.start = start
         self.accepts = accepts # Set of states
 
 def regex_to_nfa(postfix_tokens):
-    """
-    Converts a postfix regex token list to an NFA using Strict Thompson's Construction.
-    """
     stack = []
     
-    # Create a blank NFA object just to hold the transitions/states as we build
-    # But wait, our NFA class is built node-by-node. We typically just build the graph 
-    # and wrap it in NFA at the end.
-    
-    # We need a container for the transitions if we want to use NFA.add_transition helper,
-    # or we can just manipulate states directly since State objects hold their own data 
-    # (assuming the existing backend uses State objects).
-    # Let's check `core/state.py`.
-    # Based on previous file reads, `NFA` class holds `transitions` dictionary.
-    # So we should create a global `nfa` instance to store transitions? 
-    # OR, we create the states and transitions, and at the end populate a new NFA object.
-    
-    # Better approach: Create a temporary NFA tracker.
     nfa = NFA() 
-    # NFA init creates start_state. We might overwrite it.
     
     if not postfix_tokens:
-        # Empty Regex -> Accepts Empty String
-        # q0 (Start, Accept)
         s0 = State()
         nfa.states.add(s0)
         nfa.start_state = s0
@@ -48,13 +25,9 @@ def regex_to_nfa(postfix_tokens):
             f2 = stack.pop()
             f1 = stack.pop()
             
-            # Concatenation: A . B
-            # Link all f1.accepts -> f2.start with Epsilon
             for s in f1.accepts:
                 nfa.add_transition(s, None, f2.start)
             
-            # New Fragment: Start of A, Accept of B
-            # (Strictly: A's accept states are no longer accepting)
             stack.append(Fragment(f1.start, f2.accepts))
             
         elif token == "|":
@@ -62,7 +35,6 @@ def regex_to_nfa(postfix_tokens):
             f2 = stack.pop()
             f1 = stack.pop()
             
-            # Union: A | B
             # 1. New Start State s0
             s0 = State()
             nfa.states.add(s0)

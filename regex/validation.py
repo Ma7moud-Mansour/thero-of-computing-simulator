@@ -1,25 +1,15 @@
 import string
 
 def validate_regex(regex: str) -> bool:
-    """
-    Validates a regular expression based on strict formal language rules.
-    Raises ValueError with specific message if invalid.
-    Returns True if valid.
-    """
+
     if not regex:
         raise ValueError("Empty regular expression")
 
-    # 1. Allowed Alphabet
-    # Alphanumeric + union(|) + star(*) + parens()
-    # Note: We treat space as invalid unless explicit epsilon is needed, 
-    # but for standard regex input spaces are usually ignored or invalid. 
-    # Strict rule: No spaces allowed based on user prompt "Any other character is invalid".
     valid_chars = set(string.ascii_letters + string.digits + "|*()")
     for i, char in enumerate(regex):
         if char not in valid_chars:
             raise ValueError(f"Illegal character '{char}' at position {i}")
 
-    # 2. Parentheses Validation
     balance = 0
     for i, char in enumerate(regex):
         if char == '(':
