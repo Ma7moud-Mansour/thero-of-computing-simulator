@@ -4,12 +4,17 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from regex.regex_parser import insert_concatenation
 from regex.postfix import to_postfix
 from regex.thompson import regex_to_nfa
+from core.state import State
+from conversions.nfa_to_dfa import nfa_to_dfa
 
 from conversions.nfa_to_dfa import nfa_to_dfa
 from conversions.dfa_to_tm import dfa_to_tm
@@ -24,8 +29,6 @@ from regex.validation import validate_regex
 
 #------------------------------------------
 app = FastAPI()
-
-from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
@@ -115,8 +118,6 @@ def normalize_nfa(nfa):
     return nfa
 
 #------------------------------------------
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 
 app.mount("/static", StaticFiles(directory="ui"), name="static")
 
@@ -134,7 +135,6 @@ def build_nfa(data: regexInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
-    from core.state import State
     State._id = 0
     
     nfa = regex_to_nfa(postfix)
@@ -151,7 +151,6 @@ def simulate_nfa_api(data: SimulateInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
-    from core.state import State
     State._id = 0
     
     nfa = regex_to_nfa(postfix)
@@ -174,7 +173,6 @@ def build_dfa(data: regexInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
-    from core.state import State
     State._id = 0
     
     nfa = regex_to_nfa(postfix)
@@ -197,7 +195,6 @@ def simulate_dfa_api(data: SimulateInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
-    from core.state import State
     State._id = 0
     
     nfa = regex_to_nfa(postfix)
@@ -225,7 +222,6 @@ def build_tm(data: regexInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
-    from core.state import State
     State._id = 0
     
     nfa = regex_to_nfa(postfix)
@@ -381,7 +377,6 @@ def build_pda(data: regexInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
-    from core.state import State
     State._id = 0
     
     nfa = regex_to_nfa(postfix)
@@ -400,7 +395,6 @@ def simulate_pda_api(data: SimulateInput):
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
     
-    from core.state import State
     State._id = 0
     
     nfa = regex_to_nfa(postfix)
