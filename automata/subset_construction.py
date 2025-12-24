@@ -14,34 +14,22 @@ def get_alphabet(nfa):
 def nfa_to_dfa(nfa):
     """
     Converts an NFA to a DFA using the Subset Construction Algorithm.
-    
-    Returns:
-        dict: A dictionary representing the DFA structure.
-        {
-            "states": ["D0", "D1", ...],
-            "transitions": [{"from": "D0", "to": "D1", "symbol": "a"}],
-            "start_state": "D0",
-            "accept_states": ["D1", ...],
-            "state_map": {"D0": ["q0", "q1"], ...}
-        }
+
     """
     
     # 1. Initial State: Epsilon closure of NFA start state
     start_closure, _ = epsilon_closure(nfa, {nfa.start_state})
     start_tuple = tuple(sorted([s.name for s in start_closure])) # Use state names for stability
     
-    # Map: frozenset(state_names) -> DFA State ID "D{i}"
-    # We use names to represent states to avoid object identity issues if any, 
-    # but strictly we should use objects. However, names are unique in our normalized NFA.
-    # Let's map {frozenset(names)} -> "D0"
+
     
-    dfa_states = {} # { frozenset(names): "D0" }
+    dfa_states = {}
     queue = []
     
     # Register Start State
     start_key = frozenset([s.name for s in start_closure])
     dfa_states[start_key] = "D0"
-    queue.append(start_closure) # Store actual objects to pass to move/closure
+    queue.append(start_closure)
     
     transitions = []
     alphabet = get_alphabet(nfa)
@@ -58,14 +46,6 @@ def nfa_to_dfa(nfa):
             move_result, _ = move(nfa, current_nfa_states, char)
             
             if not move_result:
-                # Dead state (implicitly handling or explicit?)
-                # Standard DFA usually has total transitions, but for simplicity we often omit dead states
-                # unless strict definition requires total function. 
-                # Let's omit dead transitions for cleaner graph, unless it's an acceptor logic requirement.
-                # Theory usually implies a sink state. But visualized DFAs often omit dead edges.
-                # User asked for "Formal Definition". Formal DFA is a 5-tuple, delta is total.
-                # However, usually we don't visualize the dead state explicitly if it clutters.
-                # Let's skip for now, or add if "Dead State" needed.
                 continue
             
             # 3. Epsilon Closure of Move Result
@@ -93,7 +73,7 @@ def nfa_to_dfa(nfa):
     state_map_serializable = {}
     
     for state_set, d_id in dfa_states.items():
-        # state_set is frozenset of names
+
         state_map_serializable[d_id] = sorted(list(state_set))
         
         if not state_set.isdisjoint(nfa_accept_names):

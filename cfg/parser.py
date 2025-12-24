@@ -27,13 +27,13 @@ def parse_with_tree(grammar, string):
     def derive(symbol, pos):
         node = ParseTreeNode(symbol)
 
-        # Terminal
+
         if symbol not in grammar.productions:
             if pos < len(string) and symbol == string[pos]:
                 return node, pos + 1
             return None, pos
 
-        # Non-terminal
+
         for production in grammar.productions[symbol]:
             cur_pos = pos
             children = []

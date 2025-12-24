@@ -2,14 +2,7 @@ def dfa_to_tm(dfa):
     """
     Converts a DFA to a strict single-tape Deterministic Turing Machine (DTM).
     
-    ACADEMIC MODEL:
-    - States: Q_dfa U {q_accept, q_reject}
-    - Moves: Right (R) only for this simulation.
-    - Transitions:
-        1. Input symbols: (q, a) -> (p, a, R) [Simulate DFA move]
-        2. End of Input (_): 
-           If q is accepting in DFA -> (q, _) -> (q_accept, _, R) [Halt & Accept]
-           If q is NOT accepting    -> (q, _) -> (q_reject, _, R) [Halt & Reject]
+
     """
     tm_transitions = []
     
@@ -19,7 +12,7 @@ def dfa_to_tm(dfa):
             "from": t["from"],
             "read": t["symbol"],
             "to": t["to"],
-            "write": t["symbol"], # Read-only behavior on input
+            "write": t["symbol"],
             "move": "R"
         })
 
@@ -32,14 +25,13 @@ def dfa_to_tm(dfa):
         
         tm_transitions.append({
             "from": state,
-            "read": "_",      # Blank symbol
+            "read": "_",
             "to": target,
-            "write": "_",     # Keep blank
-            "move": "R"       # Move right (irrelevant as we halt)
+            "write": "_",
+            "move": "R"
         })
 
     # 3. Construct Final TM Structure
-    # Add new special states
     all_states = dfa["states"] + ["q_accept", "q_reject"]
     
     return {

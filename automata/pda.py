@@ -4,7 +4,7 @@ class PDA:
         self.input_alphabet = set()
         self.stack_alphabet = set()
         self.transitions = {}
-        # (state, input, stack_top) -> set((next_state, push_symbols))
+
 
         self.start_state = None
         self.accept_states = set()

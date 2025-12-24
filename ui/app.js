@@ -10,7 +10,7 @@
 let simulator;
 const API_BASE = "http://127.0.0.1:8000";
 
-// ==========================================
+
 // 1. Layout Engine
 // ==========================================
 class LayoutEngine {
@@ -32,8 +32,6 @@ class LayoutEngine {
     const visited = new Set();
     const queue = [{ state: nfa.start, rank: 0 }];
 
-    // Initialize
-    nfa.states.sort().forEach(s => ranks[s] = 0);
     visited.add(nfa.start);
 
     let maxRank = 0;
@@ -47,12 +45,11 @@ class LayoutEngine {
 
       maxRank = Math.max(maxRank, current.rank);
 
-      // Get Neighbors
       const neighbors = nfa.transitions
         .filter(t => t.from === current.state)
         .map(t => t.to);
 
-      // Sort neighbors for deterministic layout
+
       neighbors.sort();
 
       neighbors.forEach(next => {
@@ -63,8 +60,7 @@ class LayoutEngine {
       });
     }
 
-    // Handle states not reached by BFS (if any - though backend prunes them)
-    // Just place them at rank 0 or maxRank
+
 
     // Step 2: Calculate Coordinates
     const positions = {};
@@ -108,17 +104,11 @@ class Renderer {
   constructor(svgId) {
     this.svg = document.getElementById(svgId);
     this.defsInjected = false;
-    this.stateMap = {}; // DOM Element Map
-    this.edgeMap = [];  // Array of {dom, transition}
+    this.stateMap = {};
+    this.edgeMap = [];
 
-    // Drag State
-    this.dragState = null; // { nodeId, startX, startY, initialNodeX, initialNodeY }
+    this.dragState = null;
 
-    // Bind methods
-    this.handleMouseMove = this.handleMouseMove.bind(this);
-    this.handleMouseUp = this.handleMouseUp.bind(this);
-
-    // Global listeners for drag
     document.addEventListener("mousemove", this.handleMouseMove);
     document.addEventListener("mouseup", this.handleMouseUp);
   }
@@ -173,18 +163,18 @@ class Renderer {
     g.setAttribute("class", "state-group");
     g.style.cursor = "grab";
 
-    // Colors
+
     let strokeColor = "#9cdcfe"; // Default Blue
     if (isAccept) strokeColor = "#4ec9b0"; // Green (if marked accept in NFA/DFA)
 
-    // Explicit TM States
+
     if (name === "q_accept") strokeColor = "#4ec9b0";
     else if (name === "q_reject") strokeColor = "#f44747";
 
-    // Drag start listener
+
     g.addEventListener("mousedown", (e) => this.handleMouseDown(e, name));
 
-    // Start Indicator
+
     if (isStart) {
       const arrow = document.createElementNS("http://www.w3.org/2000/svg", "path");
       const sourcePt = { x: pos.x - 60, y: pos.y };
@@ -197,7 +187,7 @@ class Renderer {
       g.appendChild(arrow);
     }
 
-    // Outer Circle
+
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.setAttribute("cx", pos.x);
     circle.setAttribute("cy", pos.y);
@@ -207,8 +197,7 @@ class Renderer {
     circle.setAttribute("stroke-width", "3");
     g.appendChild(circle);
 
-    // Inner Circle (Accept)
-    // Show inner circle for regular accepted states OR q_accept
+
     if (isAccept || name === "q_accept") {
       const inner = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       inner.setAttribute("cx", pos.x);
@@ -236,7 +225,7 @@ class Renderer {
 
 
 
-  // --- Geometry Helpers ---
+
 
   getBoundaryPoint(center, target, radius) {
     const dx = target.x - center.x;
@@ -253,7 +242,7 @@ class Renderer {
   }
 
   intersectLineLine(p1, p2, p3, p4) {
-    // Check if line segment p1-p2 intersects p3-p4
+
     const det = (p2.x - p1.x) * (p4.y - p3.y) - (p4.x - p3.x) * (p2.y - p1.y);
     if (det === 0) return false;
 
@@ -264,7 +253,7 @@ class Renderer {
   }
 
   drawEdges(nfa, positions, ranks) {
-    // Group edges
+
     const groups = {};
     const pairCounts = {}; // Track A-B vs B-A
 
@@ -293,12 +282,12 @@ class Renderer {
       group.forEach((t, index) => {
         const isEpsilon = t.symbol === "ε";
 
-        // Calculate Path
+
         const { pathD, labelX, labelY } = this.calculateEdgePath(
           a, b, index, group.length, from, to, isReverse
         );
 
-        // Draw Path
+
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("d", pathD);
         path.setAttribute("fill", "none");
@@ -308,10 +297,10 @@ class Renderer {
         path.setAttribute("marker-end", "url(#arrow)");
         this.svg.appendChild(path);
 
-        // Label Group (rect + text) for easier updating
+
         const labelGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
-        // Label Box
+
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         rect.setAttribute("x", labelX - 10);
         rect.setAttribute("y", labelY - 10);
@@ -335,9 +324,7 @@ class Renderer {
           rect.setAttribute("width", w);
           rect.setAttribute("x", labelX - w / 2);
         } else if (t.pop !== undefined && t.push !== undefined) {
-          // PDA Label
-          // Use Z0 -> Z0 unless it's a real push/pop (which it isn't in Strict mode, but let's be generic)
-          // Format: input, pop -> push
+
           const sym = t.symbol || "ε";
           txt.textContent = `${sym}, ${t.pop} → ${t.push}`;
           const w = txt.textContent.length * 6 + 10;
@@ -376,13 +363,13 @@ class Renderer {
     let cpX, cpY, labelX, labelY;
 
     if (fromId === toId) {
-      // --- Self-Loop ---
-      // Arc above the node
+
+
       const angSpan = Math.PI / 4; // 45 degrees
       const startAng = -Math.PI / 2 - angSpan / 2;
       const endAng = -Math.PI / 2 + angSpan / 2;
 
-      // Fan out loops if multiple
+
       const offset = (index - (groupSize - 1) / 2) * 15;
       const loopH = 40 + Math.abs(offset) + (groupSize * 5);
 
@@ -391,7 +378,7 @@ class Renderer {
       const ex = a.x + RADIUS * Math.cos(endAng + (offset * 0.05));
       const ey = a.y + RADIUS * Math.sin(endAng + (offset * 0.05));
 
-      // Cubic Bezier Control Points
+
       const c1x = a.x - 10 - offset;
       const c1y = a.y - loopH;
       const c2x = a.x + 10 + offset;
@@ -403,20 +390,18 @@ class Renderer {
       labelY = a.y - loopH - 10;
 
     } else {
-      // --- Standard Edge ---
 
-      // Base Logic: 
-      // If single connection (groupSize=1) AND not bidirectional -> Straight Line
-      // UNLESS: Collision detected
+
+
 
       let isSimple = groupSize === 1 && !isReverse;
 
       const start = this.getBoundaryPoint(a, b, RADIUS);
       const end = this.getBoundaryPoint(b, a, RADIUS);
 
-      // Check collisions to force curve
+
       if (isSimple) {
-        // Iterate other edges
+
         for (let edge of this.edgeMap) {
           // Self check (skip if not created yet or same)
           if (!edge.dom) continue;
@@ -449,19 +434,19 @@ class Renderer {
         const midX = (a.x + b.x) / 2;
         const midY = (a.y + b.y) / 2;
 
-        // Fan out
-        // Base offset for bidirectional separation
+
+
         const biDirOffset = isReverse ? 30 : 0;
 
-        // If we forced curve due to collision but no other group reasons, ensure min curve
+
         const baseCurve = (!isReverse && groupSize === 1) ? 40 : 0;
 
-        // Multi-edge spread
+
         const spread = (index - (groupSize - 1) / 2) * 20;
 
         const totalCurve = biDirOffset + spread + baseCurve;
 
-        // Normal vector
+
         const len = Math.sqrt(dx * dx + dy * dy);
         const nx = -dy / len;
         const ny = dx / len;
@@ -469,16 +454,16 @@ class Renderer {
         cpX = midX + nx * totalCurve;
         cpY = midY + ny * totalCurve;
 
-        // Improve start/end attachment for curves
-        // Instead of center-to-center boundary, we can angle the start/end slightly
-        // based on the control point to make it look "attached" naturally.
+
+
+
 
         const curvStart = this.getBoundaryPoint(a, { x: cpX, y: cpY }, RADIUS);
         const curvEnd = this.getBoundaryPoint(b, { x: cpX, y: cpY }, RADIUS);
 
         pathD = `M ${curvStart.x} ${curvStart.y} Q ${cpX} ${cpY} ${curvEnd.x} ${curvEnd.y}`;
 
-        // Label at T=0.5
+
         labelX = 0.25 * curvStart.x + 0.5 * cpX + 0.25 * curvEnd.x;
         labelY = 0.25 * curvStart.y + 0.5 * cpY + 0.25 * curvEnd.y;
       }
@@ -488,12 +473,12 @@ class Renderer {
   }
 
   handleMouseDown(event, nodeId) {
-    event.stopPropagation(); // Prevent panning if implemented on bg
+    event.stopPropagation();
     event.preventDefault();
 
     const nodePos = this.layout.positions[nodeId];
 
-    // Get mouse pos relative to SVG
+
     const pt = this.svg.createSVGPoint();
     pt.x = event.clientX;
     pt.y = event.clientY;
@@ -507,7 +492,7 @@ class Renderer {
       initialNodeY: nodePos.y
     };
 
-    // Visual feedback
+
     if (this.stateMap[nodeId]) {
       this.stateMap[nodeId].style.cursor = "grabbing";
     }
@@ -520,7 +505,7 @@ class Renderer {
 
     const { nodeId, startX, startY, initialNodeX, initialNodeY } = this.dragState;
 
-    // Current Mouse Pos
+
     const pt = this.svg.createSVGPoint();
     pt.x = event.clientX;
     pt.y = event.clientY;
@@ -529,42 +514,42 @@ class Renderer {
     const dx = svgP.x - startX;
     const dy = svgP.y - startY;
 
-    // Update Node Logic Position
+
     const newX = initialNodeX + dx;
     const newY = initialNodeY + dy;
 
     this.layout.positions[nodeId].x = newX;
     this.layout.positions[nodeId].y = newY;
 
-    // Update Node Visuals
+
     const g = this.stateMap[nodeId];
     if (g) {
-      // We need to update all children or transform the group. 
-      // Original code sets cx/cy on circles and x/y on text/path.
-      // It's cleaner to transform the group, BUT the original code didn't use transform.
-      // Let's update the attributes directly to match the renderer style.
 
-      // 1. Update Start Arrow (if exists)
+
+
+
+
+
       const arrow = g.querySelector("path[marker-end]");
       if (arrow) {
-        // Same logic as create: source is (newX - 60, newY)
+
         const sourcePt = { x: newX - 60, y: newY };
-        // The node center is (newX, newY). 
-        // getBoundaryPoint(center, target, radius)
-        // We want point on boundary of (newX, newY) towards sourcePt
+
+
+
         const boundaryPt = this.getBoundaryPoint({ x: newX, y: newY }, sourcePt, 22);
 
         arrow.setAttribute("d", `M ${sourcePt.x} ${sourcePt.y} L ${boundaryPt.x} ${boundaryPt.y}`);
       }
 
-      // 2. Update Circles
+
       const circles = g.querySelectorAll("circle");
       circles.forEach(c => {
         c.setAttribute("cx", newX);
         c.setAttribute("cy", newY);
       });
 
-      // 3. Update Text
+
       const text = g.querySelector("text");
       if (text) {
         text.setAttribute("x", newX);
@@ -572,7 +557,7 @@ class Renderer {
       }
     }
 
-    // Update Edges
+
     this.updateConnectedEdges(nodeId);
   }
 
@@ -581,15 +566,15 @@ class Renderer {
       if (this.stateMap[this.dragState.nodeId]) {
         this.stateMap[this.dragState.nodeId].style.cursor = "grab";
 
-        // Re-calculate drag state one last time to snap perfect positions? 
-        // Not needed, but we can ensure visual states are cleared.
+
+
       }
       this.dragState = null;
     }
   }
 
   updateConnectedEdges(movedNodeId) {
-    // Find edges connected to this node
+
     const connectedEdges = this.edgeMap.filter(e => e.from === movedNodeId || e.to === movedNodeId);
 
     connectedEdges.forEach(edge => {
@@ -601,10 +586,10 @@ class Renderer {
       );
 
 
-      // Update Path
+
       edge.dom.setAttribute("d", pathD);
 
-      // Update Label
+
       if (edge.labelGroup) { // Check if we are using the new group structure
         const rect = edge.labelGroup.querySelector("rect");
         const txt = edge.labelGroup.querySelector("text");
@@ -623,8 +608,8 @@ class Renderer {
   }
 
   highlight(activeStates, transitions) {
-    // Reset
-    this.svg.querySelectorAll("circle").forEach(c => c.setAttribute("fill", "#252526")); // Reset to BG
+
+    this.svg.querySelectorAll("circle").forEach(c => c.setAttribute("fill", "#252526"));
     this.svg.querySelectorAll("path").forEach(p => {
       if (p.getAttribute("marker-end") === "url(#arrow)") {
         p.setAttribute("stroke", p.getAttribute("stroke-dasharray") !== "0" ? "#777" : "#aaa");
@@ -632,19 +617,19 @@ class Renderer {
       }
     });
 
-    // 1. Highlight States
+
     activeStates.forEach(name => {
       const g = this.stateMap[name];
       if (g) {
-        // Outer circle
+
         g.children[0].setAttribute("fill", "#264f78");
       }
     });
 
-    // 2. Highlight Edges
+
     if (transitions) {
       transitions.forEach(t => {
-        // Find matching edge dom
+
         const match = this.edgeMap.find(e =>
           e.from === t.from &&
           e.to === t.to &&
@@ -660,15 +645,13 @@ class Renderer {
   }
 }
 
-// ==========================================
-// 3. Simulator Controller
-// ==========================================
+
 class Simulator {
   constructor() {
     this.history = [];
     this.currentStep = 0;
     this.nfaData = null;
-    this.mode = 'NFA'; // 'NFA', 'DFA', or 'TM'
+    this.mode = 'NFA';
     this.tmCache = null;
     this.currentInputString = "";
 
@@ -736,10 +719,7 @@ class Simulator {
       this.currentInputString = string;
       this.renderInputTracker(string);
 
-      // CRITICAL: DO NOT Update Data or Redraw Graph
-      // The graph (NFA/DFA/PDA/TM) is static during simulation.
-      // this.nfaData = ... (REMOVED)
-      // this.renderer.draw(...) (REMOVED)
+
 
       this.currentStep = 0;
       this.updateView();
@@ -750,7 +730,7 @@ class Simulator {
   }
 
   normalize(nfa) {
-    // Ensure format
+
     return nfa;
   }
 
@@ -777,11 +757,7 @@ class Simulator {
 
     this.renderer.highlight(step.active || [step.state], step.transitions);
 
-    // Update Text Elements
-    // If in CFG mode, update cfg specific elements if needed, or share IDs?
-    // The Status Text and Step Counter are shared IDs if we didn't duplicate them.
-    // In index.html, we created `cfgStepCounter` and `cfgStatusText` for CFG tab.
-    // We should update those if in CFG mode.
+
 
     if (this.mode === 'CFG_PDA') {
       const sc = document.getElementById("cfgStepCounter");
@@ -793,11 +769,10 @@ class Simulator {
       document.getElementById("statusText").innerText = step.description || step.step;
     }
 
-    // Update Input Tracker
+
     if (this.mode === 'TM') {
       this.updateInputTracker(step.head);
     } else {
-      // Step 0 is initial, Step 1 processes char 0, etc.
       const charIndex = this.currentStep - 1;
       this.updateInputTracker(charIndex);
     }
@@ -807,7 +782,7 @@ class Simulator {
       const tapeArr = step.tape ? step.tape.split('') : ["_"];
       this.renderTape(tapeArr, step.head);
 
-      // Update Info Panel
+
       document.getElementById("tm-time").innerText = `Time: ${this.currentStep}`;
       document.getElementById("tm-state").innerText = `State: ${step.state}`;
 
@@ -835,16 +810,12 @@ class Simulator {
       let rejected = false;
 
       if (this.mode === 'TM') {
-        // TM Checks Exact State
+
         if (step.state === "q_accept") accepted = true;
         if (step.state === "q_reject") rejected = true;
 
         if (step.state && step.state.startsWith("REJECTED")) rejected = true;
       } else {
-        // NFA/DFA/PDA Check
-        // PDA active states effectively same as NFA
-        // For CFG PDA, we check acceptance by empty stack or accept state?
-        // Our backend simulate_general_pda checks accept state.
         if (step.active) {
           accepted = step.active.some(s => this.nfaData.accept.includes(s));
         }
@@ -1023,13 +994,13 @@ class Simulator {
     if (!container) return;
     container.innerHTML = "";
 
-    // Windowed View: Show e.g., radius=5 cells around head
+
     const radius = 6;
     for (let i = headPos - radius; i <= headPos + radius; i++) {
       const cell = document.createElement("div");
       cell.className = "tape-cell";
 
-      // Determine content
+
       let char = "_";
       if (i >= 0 && i < tapeChars.length) char = tapeChars[i];
 
@@ -1056,10 +1027,7 @@ class Simulator {
       container.innerHTML = "<em>(empty)</em>";
       return;
     }
-    // Stack visual: item[0] is bottom ?? Usually visual stack is top at top.
-    // CSS is column-reverse, so first child is at bottom.
-    // If stack list is [bottom, ..., top], then traversing and appending puts bottom at bottom (if column-reverse).
-    // Let's assume stack (from backend) is [Z0].
+
     stack.forEach(symbol => {
       const div = document.createElement("div");
       div.innerText = symbol;
@@ -1077,18 +1045,16 @@ class Simulator {
   }
 }
 
-// ==========================================
-// Initialization
-// ==========================================
+
 simulator = new Simulator();
 
-// Tab Logic
+
 window.switchTab = (tab) => {
   document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.style.background = 'transparent';
     btn.style.color = '#aaa';
-    if (btn.className.includes('active')) btn.classList.remove('active'); // fallback
+    if (btn.className.includes('active')) btn.classList.remove('active');
   });
 
   if (tab === 'regex') {
@@ -1096,19 +1062,18 @@ window.switchTab = (tab) => {
     document.getElementById('btn-regex').style.background = '#444';
     document.getElementById('btn-regex').style.color = 'white';
 
-    // Show correct canvas
+
     document.getElementById("canvas").style.display = "block";
 
   } else if (tab === 'cfg') {
     document.getElementById('tab-cfg').style.display = 'block';
     document.getElementById('btn-cfg').style.background = '#444';
     document.getElementById('btn-cfg').style.color = 'white';
-    document.getElementById("canvas").style.display = "block"; // Canvas visible for CFG Treehide it until PDA is built
-    // For now, let's keep canvas visible but maybe clear it if user wants
+    document.getElementById("canvas").style.display = "block";
   }
 };
 
-// Global Functions
+
 window.buildNFA = () => {
   const regex = document.getElementById("regex").value;
   simulator.loadNFA(regex);
@@ -1138,8 +1103,7 @@ window.simulate = () => {
 window.nextStep = () => simulator.next();
 window.prevStep = () => simulator.prev();
 
-// CFG Functions
-// Helper to parse textarea
+
 function parseGrammarInput() {
   const raw = document.getElementById("grammarInput").value.trim();
   const lines = raw.split('\n');
@@ -1148,7 +1112,7 @@ function parseGrammarInput() {
 
   lines.forEach(line => {
     if (!line.trim()) return;
-    // Format: S -> a S b | epsilon
+
     const parts = line.split('->');
     if (parts.length < 2) return;
 
@@ -1163,11 +1127,7 @@ function parseGrammarInput() {
       if (production === 'ε' || production === 'epsilon') {
         grammar[lhs].push(""); // empty string
       } else {
-        // Split by spaces? Or chars? 
-        // Project requirement usually implies single char terminals unless space separated.
-        // Let's assume space separated for safety, or chars if no spaces.
-        // Ideally backend handles this. Let's send list of strings.
-        // For simplicity here, let's split by space if spaces exist, else chars.
+
         if (production.includes(' ')) {
           grammar[lhs].push(production.split(/\s+/));
         } else {
@@ -1195,9 +1155,9 @@ window.parseCFG = async () => {
     const derivContent = document.getElementById("cfg-derivation-content");
     const svg = document.getElementById("canvas");
 
-    // Reset UI
+
     derivDiv.style.display = "none";
-    svg.innerHTML = ""; // clear Main Canvas
+    svg.innerHTML = "";
 
     if (data.accepted) {
       resultDiv.innerText = "Accepted ✅";
@@ -1211,7 +1171,7 @@ window.parseCFG = async () => {
 
       // 2. Visual Tree
       if (data.tree) {
-        simulator.renderer.initDefs(); // Ensure definitions exist if we cleared everything
+        simulator.renderer.initDefs();
         drawTree(data.tree, svg);
       }
 
@@ -1228,7 +1188,7 @@ window.parseCFG = async () => {
 function renderTreeText(node, prefix = "", isLeft = true) {
   if (!node) return "";
 
-  // Simple Indented Representation
+
   let result = prefix;
   result += (prefix.length > 0 ? (isLeft ? "├── " : "└── ") : "") + node.symbol + "\n";
 
@@ -1241,12 +1201,11 @@ function renderTreeText(node, prefix = "", isLeft = true) {
 }
 
 function drawTree(root, svg) {
-  // Simple Reingold-Tilford compliant or just Layered layout
   // 1. Calculate positions
   const levels = {};
   let maxLevel = 0;
 
-  // DFS to assign levels and count nodes at each level for X spacing (simpler than true RT)
+
   function traverse(node, depth, offset) {
     if (!node) return 0;
     if (!levels[depth]) levels[depth] = [];
@@ -1261,14 +1220,10 @@ function drawTree(root, svg) {
         childWidth += traverse(child, depth + 1);
       });
     }
-    // Store reference to children in obj later? 
-    // Actually we need a valid tree logic.
-    // Let's use a simpler heuristic:
-    // X is based on inorder traversal index? No, leaf count.
+
   }
 
-  // Better approach: Calculate simple tree layout
-  // Check leaf count -> Width
+
   function getLeafCount(node) {
     if (!node.children || node.children.length === 0) return 1;
     return node.children.reduce((acc, c) => acc + getLeafCount(c), 0);
@@ -1290,7 +1245,7 @@ function drawTree(root, svg) {
 
     node.children.forEach(c => assignPositions(c, depth + 1));
 
-    // Center over children
+
     const first = node.children[0];
     const last = node.children[node.children.length - 1];
     node._x = (first._x + last._x) / 2;
@@ -1311,9 +1266,9 @@ function drawTree(root, svg) {
       node.children.forEach(c => {
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
         line.setAttribute("x1", node._x);
-        line.setAttribute("y1", node._y + 15); // bottom of source
+        line.setAttribute("y1", node._y + 15);
         line.setAttribute("x2", c._x);
-        line.setAttribute("y2", c._y - 15); // top of target
+        line.setAttribute("y2", c._y - 15);
         line.setAttribute("stroke", "#555");
         line.setAttribute("stroke-width", "2");
         svg.appendChild(line);
@@ -1355,23 +1310,15 @@ function drawTree(root, svg) {
 window.buildCFGPDA = async () => {
   try {
     const { grammar, start } = parseGrammarInput();
-    // Since we are reusing the simulator graph logic, we can load it into the renderer
-    // But we need a separate endpoint for getting the PDA structure from CFG
+
     const res = await fetch(`${API_BASE}/cfg/pda`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grammar, start, string: "" }) // String not needed for build
+      body: JSON.stringify({ grammar, start, string: "" })
     });
     const pda = await res.json();
 
-    // Render this PDA
-    // We reuse simulator.normalize and renderer.draw
-    // Access simulator instance
-
-    // Switch to PDA mode visualization logic
-    // We use the same canvas.
-    simulator.mode = 'CFG_PDA';
-    simulator.cfgCache = { grammar, start }; // Cache for simulation
+    simulator.cfgCache = { grammar, start };
     simulator.nfaData = simulator.normalize(pda);
 
     const layout = simulator.layoutEngine.compute(simulator.nfaData, { xSpacing: 250, ySpacing: 150 });
@@ -1380,10 +1327,9 @@ window.buildCFGPDA = async () => {
     document.getElementById("cfg-result-text").innerText = "PDA Constructed (See Graph)";
     document.getElementById("cfg-result-text").style.color = "#dcdcaa";
 
-    // Show Controls
     document.getElementById("cfg-status-panel").style.display = "block";
     document.getElementById("tape-container").style.display = "none";
-    document.getElementById("stack-container").style.display = "none"; // Hide initially until sim starts
+    document.getElementById("stack-container").style.display = "none";
 
     simulator.resetSimulation();
     simulator.renderInputTracker("");
@@ -1396,18 +1342,18 @@ window.buildCFGPDA = async () => {
 
 window.simulateCFG = () => {
   const str = document.getElementById("cfgInputString").value;
-  // Regex arg is ignored for CFG_PDA mode
+
   simulator.runSimulation(null, str);
 };
 
-// Keyboard Shortcuts
+
 document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") simulator.next();
   if (e.key === "ArrowLeft") simulator.prev();
 });
 
-// Build initial
+
 window.onload = () => {
   window.buildNFA();
-  window.switchTab('regex'); // Default
+  window.switchTab('regex');
 };
