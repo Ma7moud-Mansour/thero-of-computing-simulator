@@ -1,12 +1,9 @@
 def simulate_dfa(dfa_data, input_string):
-    """
-    Simulates a DFA given its structure (dict) and input string.
-    Returns: (accepted: bool, history: list)
-    """
+
     current_state = dfa_data["start"]
     history = []
     
-    # Initial State
+
     history.append({
         "step": "initial",
         "description": "Start",
@@ -15,7 +12,7 @@ def simulate_dfa(dfa_data, input_string):
     })
     
     for char in input_string:
-        # Find transition
+
         next_state = None
         for t in dfa_data["transitions"]:
             if t["from"] == current_state and t["symbol"] == char:
@@ -36,7 +33,7 @@ def simulate_dfa(dfa_data, input_string):
             })
             current_state = next_state
         else:
-            # Trap / Dead state implicit
+
             history.append({
                 "step": "dead",
                 "char": char,

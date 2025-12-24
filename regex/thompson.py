@@ -5,7 +5,7 @@ class Fragment:
 
     def __init__(self, start, accepts):
         self.start = start
-        self.accepts = accepts # Set of states
+        self.accepts = accepts
 
 def regex_to_nfa(postfix_tokens):
     stack = []
@@ -21,7 +21,7 @@ def regex_to_nfa(postfix_tokens):
 
     for token in postfix_tokens:
         if token == ".":
-            if len(stack) < 2: return None # Error
+            if len(stack) < 2: return None
             f2 = stack.pop()
             f1 = stack.pop()
             
@@ -31,7 +31,7 @@ def regex_to_nfa(postfix_tokens):
             stack.append(Fragment(f1.start, f2.accepts))
             
         elif token == "|":
-            if len(stack) < 2: return None # Error
+            if len(stack) < 2: return None
             f2 = stack.pop()
             f1 = stack.pop()
             
@@ -60,10 +60,10 @@ def regex_to_nfa(postfix_tokens):
             stack.append(Fragment(s0, {f0}))
             
         elif token == "*":
-            if not stack: return None # Error
+            if not stack: return None
             f1 = stack.pop()
             
-            # Kleene Star: A*
+
             # 1. New Start s0
             s0 = State()
             nfa.states.add(s0)
@@ -89,7 +89,7 @@ def regex_to_nfa(postfix_tokens):
             stack.append(Fragment(s0, {f0}))
             
         else:
-            # Literal Character
+
             s_start = State()
             s_end = State()
             nfa.states.add(s_start)

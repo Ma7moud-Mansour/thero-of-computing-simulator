@@ -14,7 +14,7 @@ def validate_regex(regex: str) -> bool:
     for i, char in enumerate(regex):
         if char == '(':
             balance += 1
-            # Check for empty parens "()"
+
             if i + 1 < len(regex) and regex[i+1] == ')':
                 raise ValueError(f"Empty parentheses '()' at position {i}")
         elif char == ')':
@@ -26,18 +26,18 @@ def validate_regex(regex: str) -> bool:
         raise ValueError("Unmatched opening parenthesis")
 
     # 3. Operator Placement Rules
-    # | (Union)
+
     if regex[0] == '|':
         raise ValueError("Union operator '|' cannot be at the start")
     if regex[-1] == '|':
         raise ValueError("Union operator '|' cannot be at the end")
 
-    # * (Kleene Star)
+
     if regex[0] == '*':
         raise ValueError("Kleene star '*' cannot be at the start")
 
     for i, char in enumerate(regex):
-        # Context checks
+
         prev = regex[i-1] if i > 0 else None
         next_char = regex[i+1] if i < len(regex) - 1 else None
 
@@ -52,10 +52,10 @@ def validate_regex(regex: str) -> bool:
                 raise ValueError(f"Invalid sequence '|*' at position {i}")
 
         if char == '*':
-            # Must apply to something
+
             if prev in ['(', '|']:
                 raise ValueError(f"Kleene star '*' cannot follow '{prev}' at position {i}")
-            # Double star
+
             if next_char == '*':
                 raise ValueError(f"Double Kleene star '**' at position {i}")
 

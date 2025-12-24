@@ -11,12 +11,12 @@ def dfa_to_tm(dfa):
     for (state, symbol), next_state in dfa.transitions.items():
         tm.transitions[(state, symbol)] = (next_state, symbol, "R")
 
-    # End of input handling
+
     for state in dfa.states:
         tm.transitions[(state, BLANK)] = (
             state,
             BLANK,
-            "S"  # Stay
+            "S"
         )
 
     return tm

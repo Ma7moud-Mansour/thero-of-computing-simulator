@@ -16,15 +16,14 @@ def cfg_to_pda(grammar):
     terminals = set()
     for lhs, rhss in grammar.productions.items():
         for rhs in rhss:
-            # Note: stored as (state, input, stack_top) -> (next_state, push)
-            # Ensure push is hashable (tuple)
+
             push_content = tuple(rhs) if isinstance(rhs, list) else (rhs,)
             if len(push_content) == 1 and push_content[0] == "": 
-                push_content = () # empty tuple for epsilon
+                push_content = ()
 
             pda.add_transition(q, None, lhs, q, push_content)
             
-            # Collect terminals from RHS
+
             for symbol in rhs:
                 if symbol not in grammar.productions:
                     terminals.add(symbol)
