@@ -2,16 +2,13 @@ def simulate_tm(tm, input_string):
     tape = list(input_string) if input_string else []
     if not tape:
         tape = ["_"]
-        
     head = 0
     current_state = tm["start"]
     history = []
-    
     step_count = 0
     MAX_STEPS = 5000
     ACCEPT_STATE = "q_accept"
     REJECT_STATE = "q_reject"
-
     history.append({
         "step": step_count,
         "state": current_state,
@@ -22,13 +19,10 @@ def simulate_tm(tm, input_string):
         "active": [current_state],
         "transitions": []
     })
-    
     while step_count < MAX_STEPS:
         if current_state == ACCEPT_STATE or current_state == REJECT_STATE:
             break
-
         step_count += 1
-        
         # 1. Read Symbol
         if head < len(tape) and head >= 0:
             char_read = tape[head]
@@ -36,15 +30,12 @@ def simulate_tm(tm, input_string):
             char_read = "_"
             if head >= len(tape):
                 tape.append("_")
-            
         # 2. Find Transition
         transition = None
         for t in tm["transitions"]:
             if t["from"] == current_state and t["read"] == char_read:
                 transition = t
                 break
-        
-
         if not transition:
             history.append({
                 "step": step_count,
@@ -56,7 +47,6 @@ def simulate_tm(tm, input_string):
                 "transitions": []
             })
             return False, history
-
         # 3. Apply Transition
         tape[head] = transition["write"]        
         direction = transition["move"]
@@ -65,10 +55,8 @@ def simulate_tm(tm, input_string):
         elif direction == "L":
             head -= 1
             if head < 0: head = 0
-        
         prev_state = current_state
         current_state = transition["to"]
-        
         history.append({
             "step": step_count,
             "state": current_state,
@@ -82,11 +70,9 @@ def simulate_tm(tm, input_string):
                 "label": f"{transition['read']} → {transition['write']}, {direction}"
             }]
         })
-        
         if current_state == ACCEPT_STATE:
             break
         if current_state == REJECT_STATE:
             break
-
     accepted = (current_state == ACCEPT_STATE)
     return accepted, history

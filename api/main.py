@@ -80,22 +80,14 @@ def normalize_nfa(nfa):
 
     while queue:
         current = queue.pop(0)
-        
-
         outgoing = []
         for key, targets in nfa.transitions.items():
             if key[0] == current:
                  symbol = key[1] if key[1] else "ε"
-                 # Sort targets by some property if possible, or just name
-                 # Since targets are states we haven't named yet, we use their current name (creation ID)
-                 # This ensures deterministic order based on creation sequence
                  sorted_targets = sorted(list(targets), key=lambda x: int(x.name[1:]) if x.name.startswith("q") and x.name[1:].isdigit() else x.name) 
                  outgoing.append((symbol, sorted_targets))
         
-        # Sort by symbol (a, b, then epsilon)
-
         outgoing.sort(key=lambda x: x[0])
-
         for _, targets in outgoing:
             for next_state in targets:
                 if next_state not in visited:
@@ -105,17 +97,12 @@ def normalize_nfa(nfa):
                     mapping[next_state] = name
                     next_state.name = name
                     queue.append(next_state)
-    
-    
-
     nfa.states = visited
-    
     return nfa
 
 #------------------------------------------
 
 app.mount("/static", StaticFiles(directory="ui"), name="static")
-
 @app.get("/")
 def home():
     return FileResponse("ui/index.html")
@@ -142,17 +129,12 @@ def simulate_nfa_api(data: SimulateInput):
         validate_regex(data.regex.strip())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
-    
     State._id = 0
-    
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
-
     accepted, history = simulate_nfa(nfa, data.string)
-
     return {
         "accepted": accepted,
         "steps": history
@@ -164,19 +146,13 @@ def build_dfa(data: regexInput):
         validate_regex(data.regex.strip())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
     regex = insert_concatenation(data.regex.strip())
-    postfix = to_postfix(regex)
-    
+    postfix = to_postfix(regex)    
     State._id = 0
-    
     nfa = regex_to_nfa(postfix)
-
     normalize_nfa(nfa) 
-    
     from automata.subset_construction import nfa_to_dfa
     dfa = nfa_to_dfa(nfa)
-
     return dfa
 
 @app.post("/simulate/dfa")
@@ -185,21 +161,15 @@ def simulate_dfa_api(data: SimulateInput):
         validate_regex(data.regex.strip())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
-    
     State._id = 0
-    
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
-    
     from automata.subset_construction import nfa_to_dfa
     dfa = nfa_to_dfa(nfa)
-    
     from simulation.dfa_simulator import simulate_dfa
     accepted, history = simulate_dfa(dfa, data.string)
-    
     return {
         "accepted": accepted,
         "steps": history
@@ -212,42 +182,33 @@ def build_tm(data: regexInput):
         validate_regex(data.regex.strip())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
-    
     State._id = 0
-    
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
-    
     from automata.subset_construction import nfa_to_dfa
     dfa = nfa_to_dfa(nfa)
-    
     from automata.dfa_to_tm import dfa_to_tm
     tm = dfa_to_tm(dfa)
-    
     return tm
 
 @app.post("/simulate/tm")
 def simulate_tm_api(data: SimulateTMInput):
-
     accepted, history = simulate_tm(data.tm, data.string)
     return {
         "accepted": accepted,
         "steps": history
     }
+
 @app.post("/cfg/parse")
 def parse_cfg(data: CFGInput):
     g = Grammar(data.start)
     for lhs, rhss in data.grammar.items():
         for rhs in rhss:
             g.add_production(lhs, rhs)
-
-    accepted, tree = parse_with_tree(g, data.string)
-    
+    accepted, tree = parse_with_tree(g, data.string)    
     derivations = get_leftmost_derivation(tree) if tree else []
-
     return {
         "accepted": accepted,
         "tree": serialize_tree(tree) if tree else None,
@@ -257,46 +218,22 @@ def parse_cfg(data: CFGInput):
 def get_leftmost_derivation(root):
     if not root:
         return []
-    
-
     current_form = [root]
     history = [ [root.symbol] ]
-    
-
-        # Step 0: S
-        # Step 1: Replace S with its children -> e.g. A B
-        # Step 2: Replace A (leftmost) with its children -> a B
-
-        
-
-        
-        change_made = False
-        new_form = []
-        
-
-        expand_index = -1
-        for i, node in enumerate(current_form):
-
-            if node.children:
-                expand_index = i
-                break
-        
-        if expand_index == -1:
-            break # All terminals
-            
-        # Construct next step
-
-        new_form.extend(current_form[expand_index+1:])
-        
-        current_form = new_form
-        
-        # Record string representation
-        step_str = [n.symbol for n in current_form if n.symbol != "ε"]
-        if not step_str: 
-            step_str = ["ε"]
-            
-        history.append(step_str)
-        
+    new_form = []
+    expand_index = -1
+    for i, node in enumerate(current_form):
+        if node.children:
+            expand_index = i
+            break
+    if expand_index == -1:
+        break
+    new_form.extend(current_form[expand_index+1:])    
+    current_form = new_form
+    step_str = [n.symbol for n in current_form if n.symbol != "ε"]
+    if not step_str: 
+        step_str = ["ε"]
+    history.append(step_str)
     return [" ".join(h) for h in history]
 
 def serialize_tree(node):
@@ -309,14 +246,11 @@ def serialize_tree(node):
 
 @app.post("/cfg/pda")
 def build_cfg_pda(data: CFGInput):
-
     g = Grammar(data.start)
     for lhs, rhss in data.grammar.items():
         for rhs in rhss:
             g.add_production(lhs, rhs)
-            
     pda = cfg_to_pda(g)
-
     return serialize_pda(pda)
 
 #------------------------------------------
@@ -333,7 +267,6 @@ def serialize_pda(pda):
                 "to": t.name,
                 "push": "".join(push) if isinstance(push, (list, tuple)) else str(push)
             }
-
             for (s, sym, pop_sym), targets in pda.transitions.items()
             for (t, push) in targets
         ]
@@ -345,15 +278,11 @@ def build_pda(data: regexInput):
         validate_regex(data.regex.strip())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
-    
     State._id = 0
-    
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
-    
     pda = nfa_to_pda(nfa)
     return serialize_pda(pda)
 
@@ -363,20 +292,14 @@ def simulate_pda_api(data: SimulateInput):
         validate_regex(data.regex.strip())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
     regex = insert_concatenation(data.regex.strip())
     postfix = to_postfix(regex)
-    
     State._id = 0
-    
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
-    
     pda = nfa_to_pda(nfa)
-    
     from simulation.pda_simulator import simulate_pda, simulate_general_pda
     accepted, history = simulate_pda(pda, data.string)
-    
     return {
         "accepted": accepted,
         "steps": history
@@ -389,12 +312,9 @@ def simulate_cfg_pda(data: CFGInput):
     for lhs, rhss in data.grammar.items():
         for rhs in rhss:
             g.add_production(lhs, rhs)
-            
     pda = cfg_to_pda(g)
-    
     from simulation.pda_simulator import simulate_general_pda
     accepted, history = simulate_general_pda(pda, data.string, accept_by_empty_stack=True)
-    
     return {
         "accepted": accepted,
         "steps": history

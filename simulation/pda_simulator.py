@@ -3,7 +3,6 @@ def simulate_pda(pda, input_string):
         stack = list(states)
         closure = set(states)
         transitions = []
-        
         while stack:
             s = stack.pop()
             key = (s, None, "Z0")
@@ -25,8 +24,7 @@ def simulate_pda(pda, input_string):
 
     def move(states, char):
         next_states = set()
-        transitions = []
-        
+        transitions = []        
         for s in states:
             key = (s, char, "Z0")
             if key in pda.transitions:
@@ -42,12 +40,10 @@ def simulate_pda(pda, input_string):
                         "push": "Z0"
                     })
         return next_states, transitions
-
-    history = []
     
+    history = []
     start_node = pda.start_state
     current_states, initial_epsilon = epsilon_closure({start_node})
-    
     history.append({
         "step": "initial",
         "description": "Start & Initial ε-closure",
@@ -55,12 +51,10 @@ def simulate_pda(pda, input_string):
         "transitions": initial_epsilon,
         "stack": ["Z0"]
     })
-    
     # 2. Process Input
     for char in input_string:
         move_dest, move_trans = move(current_states, char)
         next_active, epsilon_trans = epsilon_closure(move_dest)
-        
         history.append({
             "step": "consume",
             "char": char,
@@ -69,7 +63,6 @@ def simulate_pda(pda, input_string):
             "transitions": move_trans,
             "stack": ["Z0"]
         })
-        
         if epsilon_trans or (not epsilon_trans and not move_trans):
              history.append({
                 "step": "epsilon",
@@ -85,24 +78,19 @@ def simulate_pda(pda, input_string):
                 "active": [s.name for s in next_active],
                 "transitions": [],
                 "stack": ["Z0"]
-            })
-            
+            })  
         current_states = next_active
 
     # 3. Acceptance
-    accepted = any(s in pda.accept_states for s in current_states)
-    
+    accepted = any(s in pda.accept_states for s in current_states)    
     return accepted, history
 
 def simulate_general_pda(pda, input_string, accept_by_empty_stack=False):
-
     def format_stack(s):
         return list(s)
-        
     start_node = pda.start_state
     start_stack = [pda.start_stack_symbol]
     MAX_STEPS = 1000
-    
     queue = [ {
         "state": start_node,
         "stack": start_stack,
@@ -110,11 +98,9 @@ def simulate_general_pda(pda, input_string, accept_by_empty_stack=False):
         "history": [],
         "steps_count": 0
     } ]
-    
     import heapq
     pq = []
     entry_count = 0
-    
     initial_config = {
         "state": start_node,
         "stack": start_stack,
@@ -129,35 +115,27 @@ def simulate_general_pda(pda, input_string, accept_by_empty_stack=False):
             "transitions": []
         }]
     }
-    
     heapq.heappush(pq, (len(input_string), 0, entry_count, initial_config))
     entry_count += 1
     best_rejected_history = initial_config["history"]
-    
     while pq:
         _, steps, _, config = heapq.heappop(pq)
         state = config["state"]
         stack = config["stack"]
         remaining = config["remaining"]
         history = config["history"]
-        
         if len(remaining) == 0:
             if accept_by_empty_stack:
                 if len(stack) == 0:
                     return True, history
             elif state in pda.accept_states:
                 return True, history
-        
         if steps > MAX_STEPS:
             continue
-            
-        
         possible_moves = []
-        
         stack_top = stack[-1] if stack else None
         def get_next_configs(input_char_key, input_char_actual, consume_input):
             if stack_top is None: return []
-            
             key = (state, input_char_key, stack_top)
             results = []
             if key in pda.transitions:
@@ -167,7 +145,6 @@ def simulate_general_pda(pda, input_string, accept_by_empty_stack=False):
                     final_stack = new_stack + list(reversed(push_list))
                     new_remaining = remaining[1:] if consume_input else remaining
                     action_desc = f"{'ε' if input_char_actual is None else input_char_actual}, {stack_top} → {''.join(push_list) if push_list else 'ε'}"
-                    
                     new_history_step = {
                         "step": steps + 1,
                         "state": target.name,
@@ -180,8 +157,7 @@ def simulate_general_pda(pda, input_string, accept_by_empty_stack=False):
                             "to": target.name,
                             "label": action_desc
                         }]
-                    }
-                    
+                    }                    
                     results.append({
                         "state": target,
                         "stack": final_stack,
@@ -194,12 +170,10 @@ def simulate_general_pda(pda, input_string, accept_by_empty_stack=False):
         possible_moves.extend(get_next_configs(None, None, False))        
         if remaining:
             char = remaining[0]
-            possible_moves.extend(get_next_configs(char, char, True))
-            
+            possible_moves.extend(get_next_configs(char, char, True))            
         for pm in possible_moves:
             heapq.heappush(pq, (len(pm["remaining"]), pm["steps_count"], entry_count, pm))
             entry_count += 1
-            
         if len(history) > len(best_rejected_history):
             best_rejected_history = history
 
