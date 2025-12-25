@@ -1,9 +1,5 @@
 def dfa_to_tm(dfa):
-    """
-    Converts a DFA to a strict single-tape Deterministic Turing Machine (DTM).
-    
 
-    """
     tm_transitions = []
     
     # 1. Standard Input Transitions (Simulate DFA)

@@ -1,10 +1,7 @@
 from simulation.nfa_simulator import epsilon_closure, move
 
 def get_alphabet(nfa):
-    """
-    Extracts the alphabet from the NFA transitions.
-    Excludes None (epsilon).
-    """
+
     alphabet = set()
     for (state, symbol) in nfa.transitions.keys():
         if symbol is not None:
@@ -12,10 +9,7 @@ def get_alphabet(nfa):
     return sorted(list(alphabet))
 
 def nfa_to_dfa(nfa):
-    """
-    Converts an NFA to a DFA using the Subset Construction Algorithm.
 
-    """
     
     # 1. Initial State: Epsilon closure of NFA start state
     start_closure, _ = epsilon_closure(nfa, {nfa.start_state})
