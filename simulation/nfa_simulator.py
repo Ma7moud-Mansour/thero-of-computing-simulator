@@ -20,7 +20,7 @@ def epsilon_closure(nfa, states):
     
     return closure, transitions
 
-def move(nfa, states, symol):
+def move(nfa, states, symbol):
     next_states = set()
     transitions = []
     for s in states:

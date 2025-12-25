@@ -227,7 +227,9 @@ def get_leftmost_derivation(root):
             expand_index = i
             break
     if expand_index == -1:
-        break
+     return history
+
+
     new_form.extend(current_form[expand_index+1:])    
     current_form = new_form
     step_str = [n.symbol for n in current_form if n.symbol != "ε"]
