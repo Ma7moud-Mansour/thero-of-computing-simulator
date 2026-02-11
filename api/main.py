@@ -55,6 +55,10 @@ class CFGInput(BaseModel):
     start: str
     string: str
 
+class CompareInput(BaseModel):
+    regex: str
+    string: str
+
 #------------------------------------------
 
 def serialize_nfa(nfa):
@@ -121,7 +125,13 @@ def build_nfa(data: regexInput):
     
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
-    return serialize_nfa(nfa)
+    result = serialize_nfa(nfa)
+    result["metrics"] = {
+        "states": len(result["states"]),
+        "transitions": len(result["transitions"]),
+        "epsilon_transitions": sum(1 for t in result["transitions"] if t["symbol"] == "ε")
+    }
+    return result
 
 @app.post("/simulate/nfa")
 def simulate_nfa_api(data: SimulateInput):
@@ -137,7 +147,8 @@ def simulate_nfa_api(data: SimulateInput):
     accepted, history = simulate_nfa(nfa, data.string)
     return {
         "accepted": accepted,
-        "steps": history
+        "steps": history,
+        "metrics": { "execution_steps": len(history) }
     }
 
 @app.post("/dfa")
@@ -153,6 +164,10 @@ def build_dfa(data: regexInput):
     normalize_nfa(nfa) 
     from automata.subset_construction import nfa_to_dfa
     dfa = nfa_to_dfa(nfa)
+    dfa["metrics"] = {
+        "states": len(dfa["states"]),
+        "transitions": len(dfa["transitions"])
+    }
     return dfa
 
 @app.post("/simulate/dfa")
@@ -172,7 +187,8 @@ def simulate_dfa_api(data: SimulateInput):
     accepted, history = simulate_dfa(dfa, data.string)
     return {
         "accepted": accepted,
-        "steps": history
+        "steps": history,
+        "metrics": { "execution_steps": len(history) }
     }
 
 
@@ -191,6 +207,10 @@ def build_tm(data: regexInput):
     dfa = nfa_to_dfa(nfa)
     from automata.dfa_to_tm import dfa_to_tm
     tm = dfa_to_tm(dfa)
+    tm["metrics"] = {
+        "states": len(tm["states"]),
+        "transitions": len(tm["transitions"])
+    }
     return tm
 
 @app.post("/simulate/tm")
@@ -198,7 +218,8 @@ def simulate_tm_api(data: SimulateTMInput):
     accepted, history = simulate_tm(data.tm, data.string)
     return {
         "accepted": accepted,
-        "steps": history
+        "steps": history,
+        "metrics": { "execution_steps": len(history) }
     }
 
 @app.post("/cfg/parse")
@@ -286,7 +307,12 @@ def build_pda(data: regexInput):
     nfa = regex_to_nfa(postfix)
     normalize_nfa(nfa)
     pda = nfa_to_pda(nfa)
-    return serialize_pda(pda)
+    result = serialize_pda(pda)
+    result["metrics"] = {
+        "states": len(result["states"]),
+        "transitions": len(result["transitions"])
+    }
+    return result
 
 @app.post("/simulate/pda")
 def simulate_pda_api(data: SimulateInput):
@@ -304,7 +330,8 @@ def simulate_pda_api(data: SimulateInput):
     accepted, history = simulate_pda(pda, data.string)
     return {
         "accepted": accepted,
-        "steps": history
+        "steps": history,
+        "metrics": { "execution_steps": len(history) }
     }
 
 
@@ -319,5 +346,75 @@ def simulate_cfg_pda(data: CFGInput):
     accepted, history = simulate_general_pda(pda, data.string, accept_by_empty_stack=True)
     return {
         "accepted": accepted,
-        "steps": history
+        "steps": history,
+        "metrics": { "execution_steps": len(history) }
+    }
+
+
+#------------------------------------------
+# COMPARISON MODE
+#------------------------------------------
+
+@app.post("/compare")
+def compare_models(data: CompareInput):
+    try:
+        validate_regex(data.regex.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    regex = insert_concatenation(data.regex.strip())
+    postfix = to_postfix(regex)
+
+    # --- Build & Simulate NFA ---
+    State._id = 0
+    nfa = regex_to_nfa(postfix)
+    normalize_nfa(nfa)
+    nfa_data = serialize_nfa(nfa)
+    nfa_accepted, nfa_history = simulate_nfa(nfa, data.string)
+
+    # --- Build & Simulate DFA ---
+    State._id = 0
+    nfa2 = regex_to_nfa(postfix)
+    normalize_nfa(nfa2)
+    from automata.subset_construction import nfa_to_dfa as subset_nfa_to_dfa
+    dfa_data = subset_nfa_to_dfa(nfa2)
+    from simulation.dfa_simulator import simulate_dfa
+    dfa_accepted, dfa_history = simulate_dfa(dfa_data, data.string)
+
+    # --- Build & Simulate TM ---
+    from automata.dfa_to_tm import dfa_to_tm as build_tm_from_dfa
+    tm_data = build_tm_from_dfa(dfa_data)
+    tm_accepted, tm_history = simulate_tm(tm_data, data.string)
+
+    return {
+        "nfa": {
+            "graph": nfa_data,
+            "accepted": nfa_accepted,
+            "steps": nfa_history,
+            "metrics": {
+                "states": len(nfa_data["states"]),
+                "transitions": len(nfa_data["transitions"]),
+                "execution_steps": len(nfa_history)
+            }
+        },
+        "dfa": {
+            "graph": dfa_data,
+            "accepted": dfa_accepted,
+            "steps": dfa_history,
+            "metrics": {
+                "states": len(dfa_data["states"]),
+                "transitions": len(dfa_data["transitions"]),
+                "execution_steps": len(dfa_history)
+            }
+        },
+        "tm": {
+            "graph": tm_data,
+            "accepted": tm_accepted,
+            "steps": tm_history,
+            "metrics": {
+                "states": len(tm_data["states"]),
+                "transitions": len(tm_data["transitions"]),
+                "execution_steps": len(tm_history)
+            }
+        }
     }

@@ -1,6 +1,15 @@
-# Theory of Computing Simulator
+# Formal Computation Engine
+### An Interactive Visual Execution Engine for Formal Computation Models
 
-This project creates a visual simulator for Automata Theory concepts, including NFA construction and simulation.
+A web-based environment for constructing, visualizing, executing, and **comparing** formal computation models (NFA, DFA, PDA, Turing Machine) derived from the same language specification. The engine provides step-by-step execution traces, complexity metrics, and side-by-side comparison of computational processes — bridging the gap between theoretical formalism and observable machine behavior.
+
+## Core Capabilities
+
+- **Multi-Model Construction**: Regex → NFA (Thompson) → DFA (Subset Construction) → TM
+- **CFG Processing**: Recursive descent parsing with parse tree visualization, CFG → PDA
+- **Step-by-Step Execution**: Full execution history with state highlighting, transitions, tape/stack visualization
+- **Comparison Mode**: Side-by-side execution of NFA vs DFA vs TM on the same input, with complexity metrics (states, transitions, execution steps)
+- **Interactive Graph**: Draggable state nodes, curved edge routing, real-time layout updates
 
 ## Prerequisites
 
@@ -16,29 +25,29 @@ This project creates a visual simulator for Automata Theory concepts, including 
 pip install fastapi uvicorn
 ```
 
-*(Note: If you plan to run the legacy desktop app, you might also need `PySide6`, but for the Web Simulator, only the above are required.)*
-
-## Running the Web Simulator
+## Running the Engine
 
 ### 1. Start the Backend API
-The simulator uses a Python FastAPI backend to handle logic.
-
-Run the following command in the project directory:
 
 ```bash
 python -m uvicorn api.main:app --reload
 ```
 
-You should see output indicating the server is running at `http://127.0.0.1:8000`.
+The server will start at `http://127.0.0.1:8000`.
 
-### 2. Run the User Interface
-Open the `ui/index.html` file in your modern web browser (Chrome, Edge, Firefox).
+### 2. Open the Interface
 
-- **Option A**: Double-click `ui/index.html` in your file explorer.
-- **Option B**: Right-click -> Open With -> Google Chrome.
+Navigate to `http://127.0.0.1:8000` in your browser, or open `ui/index.html` directly.
 
-## Features
+## Architecture
 
-- **Regex to NFA**: Convert regular expressions like `(a|b)*ab` into NFA graphs.
-- **Visualization**: Clear, rank-based visualization of states and transitions.
-- **Simulation**: Step-by-step visual simulation of input strings, highlighting active states and transitions along the path.
+```
+core/           → Base classes (State, Automaton)
+automata/       → Machine definitions (NFA, DFA, PDA, TM) + subset construction
+regex/          → Regex validation, parsing, infix→postfix, Thompson's construction
+cfg/            → Grammar definition, recursive descent parser, parse trees
+conversions/    → Cross-model transformations (NFA→DFA, DFA→TM, NFA→PDA, CFG→PDA)
+simulation/     → Step-by-step simulators for each machine type
+api/            → FastAPI backend with all endpoints
+ui/             → Web frontend (HTML + CSS + JS with SVG visualization)
+```

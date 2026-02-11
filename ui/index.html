@@ -3,7 +3,9 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>NFA Simulator Pro</title>
+  <meta name="description"
+    content="An interactive visual execution engine for formal computation models — construct, execute, compare, and debug NFA, DFA, PDA, and Turing Machines.">
+  <title>Formal Computation Engine — Visual Execution & Comparison</title>
   <style>
     :root {
       --bg-color: #1e1e1e;
@@ -166,49 +168,63 @@
 <body>
 
   <div class="sidebar">
-    <h1>Theory Studio</h1>
+    <h1>Formal Computation Engine</h1>
+    <p style="font-size:0.7rem; color:#777; margin:2px 0 0 0; letter-spacing:0.5px;">Visual Execution & Comparison of
+      Formal Computation Models</p>
 
     <!-- TABS -->
     <div class="tabs" style="display:flex; margin-bottom:15px; background:#252526; padding:5px; border-radius:4px;">
       <button class="tab-btn active" id="btn-regex"
-        style="flex:1; background:#444; border:none; color:white; padding:8px; cursor:pointer;"
-        onclick="switchTab('regex')">Regex Lab</button>
+        style="flex:1; background:#444; border:none; color:white; padding:8px; cursor:pointer; font-size:0.75rem;"
+        onclick="switchTab('regex')">Regular Language</button>
       <button class="tab-btn" id="btn-cfg"
-        style="flex:1; background:transparent; border:none; color:#aaa; padding:8px; cursor:pointer;"
-        onclick="switchTab('cfg')">CFG Lab</button>
+        style="flex:1; background:transparent; border:none; color:#aaa; padding:8px; cursor:pointer; font-size:0.75rem;"
+        onclick="switchTab('cfg')">Context-Free</button>
+      <button class="tab-btn" id="btn-compare"
+        style="flex:1; background:transparent; border:none; color:#aaa; padding:8px; cursor:pointer; font-size:0.75rem;"
+        onclick="switchTab('compare')">⚡ Compare</button>
     </div>
 
     <!-- REGEX TAB CONTENT -->
     <div id="tab-regex" class="tab-content">
       <div class="control-group">
-        <label>Regular Expression</label>
+        <label>Input Specification (Regular Expression)</label>
         <input type="text" id="regex" value="(a|b)*ab" placeholder="e.g. (a|b)*ab">
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:5px;">
-          <button onclick="buildNFA()">NFA</button>
-          <button class="secondary" onclick="buildDFA()">DFA</button>
-          <button class="secondary" onclick="buildPDA()">PDA</button>
-          <button class="secondary" onclick="buildTM()">TM</button>
+          <button onclick="buildNFA()">Construct NFA</button>
+          <button class="secondary" onclick="buildDFA()">Construct DFA</button>
+          <button class="secondary" onclick="buildPDA()">Construct PDA</button>
+          <button class="secondary" onclick="buildTM()">Construct TM</button>
         </div>
+        <div style="font-size:0.65rem; color:#666; margin-top:4px; line-height:1.3;">Each model accepts L(r) through a
+          different computational process.</div>
       </div>
 
       <hr style="border: 0; border-top: 1px solid #444; width: 100%;">
 
       <div class="control-group">
-        <label>Test Input</label>
+        <label>Execution Input (w)</label>
         <input type="text" id="inputString" value="aab" placeholder="e.g. aba">
-        <button class="secondary" onclick="simulate()" style="width:100%; margin-top:5px;">Simulate</button>
+        <button class="secondary" onclick="simulate()" style="width:100%; margin-top:5px;">Execute ▶</button>
         <div id="inputTracker"
           style="display: flex; gap: 5px; margin-top: 15px; font-family: 'Consolas', monospace; font-size: 1.2rem; justify-content: center; min-height: 1.5em; flex-wrap: wrap;">
         </div>
       </div>
 
       <div class="status-panel">
-        <div class="step-counter" id="stepCounter">Ready to simulate</div>
-        <div class="status-text" id="statusText">Waiting...</div>
+        <div class="step-counter" id="stepCounter">Awaiting execution</div>
+        <div class="status-text" id="statusText">No active computation</div>
+
+        <!-- Metrics Panel -->
+        <div id="metrics-panel"
+          style="display:none; margin-top:8px; padding:6px 8px; background:#1a1a1a; border:1px solid #333; border-radius:4px; font-size:0.7rem;">
+          <div style="color:#aaa; margin-bottom:3px; font-weight:600;">Construction Metrics</div>
+          <div id="metrics-content" style="color:#9cdcfe;"></div>
+        </div>
 
         <div class="playback-controls">
-          <button class="secondary" onclick="prevStep()">◀ Prev</button>
-          <button class="secondary" onclick="nextStep()">Next ▶</button>
+          <button class="secondary" onclick="prevStep()">◀ Step Back</button>
+          <button class="secondary" onclick="nextStep()">Step Forward ▶</button>
         </div>
       </div>
     </div>
@@ -223,14 +239,14 @@ S -> ε</textarea>
       </div>
 
       <div class="control-group">
-        <label>Test String</label>
+        <label>Execution Input (w)</label>
         <input type="text" id="cfgInputString" value="" placeholder="e.g. ab">
       </div>
 
       <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
         <button onclick="parseCFG()">Parse String</button>
-        <button class="secondary" onclick="buildCFGPDA()">Convert to PDA</button>
-        <button class="secondary" onclick="simulateCFG()">Simulate PDA</button>
+        <button class="secondary" onclick="buildCFGPDA()">Construct PDA</button>
+        <button class="secondary" onclick="simulateCFG()">Execute PDA</button>
       </div>
 
       <div class="status-panel" id="cfg-status-panel" style="margin-top:20px; display:none;">
@@ -243,8 +259,8 @@ S -> ε</textarea>
         </div>
 
         <div class="playback-controls">
-          <button class="secondary" onclick="prevStep()">◀ Prev</button>
-          <button class="secondary" onclick="nextStep()">Next ▶</button>
+          <button class="secondary" onclick="prevStep()">◀ Step Back</button>
+          <button class="secondary" onclick="nextStep()">Step Forward ▶</button>
         </div>
       </div>
 
@@ -268,6 +284,51 @@ S -> ε</textarea>
         <!-- Legacy text tree (hidden or removed, let's keep it as fallback/debug or remove if user wants ONLY visual) -->
         <!-- User asked for Visual Tree so let's stick to SVG primarily, maybe keep text for debug in console? -->
         <div id="cfg-tree-display" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- COMPARISON MODE TAB -->
+    <div id="tab-compare" class="tab-content" style="display:none;">
+      <div class="control-group">
+        <label>Input Specification (Regular Expression)</label>
+        <input type="text" id="compareRegex" value="(a|b)*ab" placeholder="e.g. (a|b)*ab">
+      </div>
+      <div class="control-group">
+        <label>Execution Input (w)</label>
+        <input type="text" id="compareString" value="aab" placeholder="e.g. aab">
+        <button onclick="runComparison()" style="width:100%; margin-top:5px;">⚡ Compare All Models</button>
+        <div style="font-size:0.65rem; color:#666; margin-top:4px; line-height:1.3;">Constructs NFA, DFA, and TM from
+          the same specification, executes the same input, and compares computational cost.</div>
+      </div>
+
+      <!-- Metrics Summary Table -->
+      <div id="compare-metrics" style="display:none; margin-top:15px;">
+        <div style="font-size:0.75rem; color:#aaa; margin-bottom:6px; font-weight:600;">Computational Complexity
+          Comparison</div>
+        <table style="width:100%; border-collapse:collapse; font-size:0.75rem;">
+          <thead>
+            <tr style="border-bottom:1px solid #555; color:#aaa;">
+              <th style="text-align:left; padding:6px;">Model</th>
+              <th style="padding:6px;">|Q|</th>
+              <th style="padding:6px;">|δ|</th>
+              <th style="padding:6px;">Steps</th>
+              <th style="padding:6px;">Result</th>
+            </tr>
+          </thead>
+          <tbody id="compare-metrics-body"></tbody>
+        </table>
+        <div style="font-size:0.6rem; color:#555; margin-top:6px; line-height:1.3;">|Q| = state count · |δ| = transition
+          count · Steps = execution trace length</div>
+      </div>
+
+      <!-- Compare Status -->
+      <div class="status-panel" style="margin-top:15px;">
+        <div class="step-counter" id="compareStepCounter">Awaiting comparison</div>
+        <div class="status-text" id="compareStatusText">No active computation</div>
+        <div class="playback-controls">
+          <button class="secondary" onclick="prevCompareStep()">◀ Step Back</button>
+          <button class="secondary" onclick="nextCompareStep()">Step Forward ▶</button>
+        </div>
       </div>
     </div>
   </div>

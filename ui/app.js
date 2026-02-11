@@ -97,9 +97,10 @@ class LayoutEngine {
   }
 }
 
-// ==========================================
 // 2. Renderer
 // ==========================================
+const RADIUS = 20;
+
 class Renderer {
   constructor(svgId) {
     this.svg = document.getElementById(svgId);
@@ -108,6 +109,9 @@ class Renderer {
     this.edgeMap = [];
 
     this.dragState = null;
+
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.handleMouseUp = this.handleMouseUp.bind(this);
 
     document.addEventListener("mousemove", this.handleMouseMove);
     document.addEventListener("mouseup", this.handleMouseUp);
@@ -667,6 +671,7 @@ class Simulator {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ regex })
       });
+      if (!res.ok) throw new Error((await res.json()).detail);
       const nfa = await res.json();
       this.nfaData = this.normalize(nfa);
 
@@ -676,9 +681,12 @@ class Simulator {
       this.resetSimulation();
       this.currentInputString = "";
       document.getElementById("inputTracker").innerHTML = "";
+      displayMetrics(nfa.metrics);
+      document.getElementById("statusText").innerText = "NFA constructed \u2014 nondeterministic model ready for execution";
+      document.getElementById("stepCounter").innerText = `NFA \xb7 Thompson\u2019s Construction \xb7 |Q|=${nfa.metrics ? nfa.metrics.states : '?'} states`;
     } catch (e) {
       console.error(e);
-      alert("Error building NFA");
+      alert(e.message || "Construction failed \u2014 invalid specification");
     }
   }
 
@@ -725,7 +733,7 @@ class Simulator {
       this.updateView();
     } catch (e) {
       console.error(e);
-      alert("Simulation Error");
+      alert("Execution error \u2014 unable to complete computation");
     }
   }
 
@@ -752,7 +760,7 @@ class Simulator {
     const step = this.history[this.currentStep];
     if (!step) return;
 
-    document.getElementById("stepCounter").innerText = `Step ${this.currentStep + 1} / ${this.history.length}`;
+    document.getElementById("stepCounter").innerText = `Execution Step ${this.currentStep + 1} / ${this.history.length}`;
     document.getElementById("statusText").innerText = step.description || step.step;
 
     this.renderer.highlight(step.active || [step.state], step.transitions);
@@ -823,17 +831,17 @@ class Simulator {
 
       const statusEl = (this.mode === 'CFG_PDA') ? document.getElementById("cfgStatusText") : document.getElementById("statusText");
       if (accepted) {
-        statusEl.innerText = "Halted & Accepted ✅";
+        statusEl.innerText = "Computation halted — input ACCEPTED ∈ L(r) ✅";
         statusEl.style.color = "#4ec9b0";
       } else if (rejected) {
-        statusEl.innerText = "Halted & Rejected ❌";
+        statusEl.innerText = "Computation halted — input REJECTED ∉ L(r) ❌";
         statusEl.style.color = "#f44747";
       } else {
         if (this.mode === 'TM') {
-          statusEl.innerText = "Stopped (Limit Reached) ⚠️";
+          statusEl.innerText = "Execution limit reached — computation did not halt ⚠️";
           statusEl.style.color = "#dcdcaa";
         } else {
-          statusEl.innerText = "Rejected ❌";
+          statusEl.innerText = "No accepting configuration reached — REJECTED ∉ L(r) ❌";
           statusEl.style.color = "#f44747";
         }
       }
@@ -846,7 +854,7 @@ class Simulator {
   async loadDFA(regex) {
     try {
       this.mode = 'DFA';
-      document.getElementById("statusText").innerText = "Building DFA...";
+      document.getElementById("statusText").innerText = "Constructing deterministic automaton via subset construction...";
       const res = await fetch(`${API_BASE}/dfa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -862,8 +870,9 @@ class Simulator {
       this.resetSimulation();
       this.currentInputString = "";
       document.getElementById("inputTracker").innerHTML = "";
-      document.getElementById("statusText").innerText = "DFA Ready";
-      document.getElementById("stepCounter").innerText = "Deterministic Finite Automaton";
+      displayMetrics(dfa.metrics);
+      document.getElementById("statusText").innerText = "DFA constructed — deterministic model ready for execution";
+      document.getElementById("stepCounter").innerText = `DFA · Subset Construction · |Q|=${dfa.metrics ? dfa.metrics.states : '?'} states`;
 
       document.getElementById("tape-container").style.display = "none";
       document.getElementById("stack-container").style.display = "none";
@@ -876,7 +885,7 @@ class Simulator {
   async loadPDA(regex) {
     try {
       this.mode = 'PDA';
-      document.getElementById("statusText").innerText = "Building PDA...";
+      document.getElementById("statusText").innerText = "Constructing pushdown automaton...";
       const res = await fetch(`${API_BASE}/pda`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -899,8 +908,9 @@ class Simulator {
       this.currentInputString = "";
       document.getElementById("inputTracker").innerHTML = "";
 
-      document.getElementById("statusText").innerText = "PDA Ready";
-      document.getElementById("stepCounter").innerText = "Strict PDA (NFA Wrapper)";
+      displayMetrics(pda.metrics);
+      document.getElementById("statusText").innerText = "PDA constructed — stack-based model ready for execution";
+      document.getElementById("stepCounter").innerText = `PDA · NFA-derived · Stack-augmented model`;
 
     } catch (e) {
       console.error(e);
@@ -911,7 +921,7 @@ class Simulator {
   async loadTM(regex) {
     try {
       this.mode = 'TM';
-      document.getElementById("statusText").innerText = "Building Turing Machine...";
+      document.getElementById("statusText").innerText = "Constructing Turing Machine from DFA model...";
       const res = await fetch(`${API_BASE}/build_tm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -929,8 +939,9 @@ class Simulator {
       this.resetSimulation();
       this.currentInputString = "";
       document.getElementById("inputTracker").innerHTML = "";
-      document.getElementById("statusText").innerText = "TM Ready";
-      document.getElementById("stepCounter").innerText = "Standard Single-Tape TM";
+      displayMetrics(tm.metrics);
+      document.getElementById("statusText").innerText = "TM constructed — single-tape deterministic model ready";
+      document.getElementById("stepCounter").innerText = `TM · Single-Tape Deterministic · |Q|=${tm.metrics ? tm.metrics.states : '?'} states`;
 
       document.getElementById("tape-container").style.display = "block";
       this.renderTape(["_"], 0);
@@ -1039,8 +1050,8 @@ class Simulator {
   resetSimulation() {
     this.history = [];
     this.currentStep = 0;
-    document.getElementById("stepCounter").innerText = "Ready";
-    document.getElementById("statusText").innerText = "";
+    document.getElementById("stepCounter").innerText = "Awaiting execution";
+    document.getElementById("statusText").innerText = "No active computation";
     this.renderer.highlight([], []);
   }
 }
@@ -1069,6 +1080,11 @@ window.switchTab = (tab) => {
     document.getElementById('tab-cfg').style.display = 'block';
     document.getElementById('btn-cfg').style.background = '#444';
     document.getElementById('btn-cfg').style.color = 'white';
+    document.getElementById("canvas").style.display = "block";
+  } else if (tab === 'compare') {
+    document.getElementById('tab-compare').style.display = 'block';
+    document.getElementById('btn-compare').style.background = '#444';
+    document.getElementById('btn-compare').style.color = 'white';
     document.getElementById("canvas").style.display = "block";
   }
 };
@@ -1344,6 +1360,101 @@ window.simulateCFG = () => {
   const str = document.getElementById("cfgInputString").value;
 
   simulator.runSimulation(null, str);
+};
+
+
+
+// --- Competition Level Features ---
+
+function displayMetrics(metrics) {
+  const panel = document.getElementById("metrics-panel");
+  const content = document.getElementById("metrics-content");
+  if (!metrics) {
+    if (panel) panel.style.display = "none";
+    return;
+  }
+  if (panel) panel.style.display = "block";
+  if (content) {
+    const format = (key) => key.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+    content.innerHTML = Object.entries(metrics)
+      .map(([k, v]) => `<span style="color:#aaa">${format(k)}:</span> <b>${v}</b>`)
+      .join(" &nbsp;|&nbsp; ");
+  }
+}
+
+window.runComparison = async () => {
+  const regex = document.getElementById("compareRegex").value;
+  const string = document.getElementById("compareString").value;
+  const metricsPanel = document.getElementById("compare-metrics");
+  const metricsBody = document.getElementById("compare-metrics-body");
+  const statusStep = document.getElementById("compareStepCounter");
+  const statusText = document.getElementById("compareStatusText");
+
+  try {
+    statusStep.innerText = "Executing Comparison...";
+    statusText.innerText = "Constructing and simulating NFA, DFA, and TM...";
+
+    const res = await fetch(`${API_BASE}/compare`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ regex, string })
+    });
+
+    if (!res.ok) throw new Error((await res.json()).detail);
+    const data = await res.json();
+
+    // Show metrics table
+    metricsPanel.style.display = "block";
+    metricsBody.innerHTML = `
+      <tr>
+        <td style="padding:6px; color:#9cdcfe; font-weight:600;">NFA</td>
+        <td style="text-align:center;">${data.nfa.metrics.states}</td>
+        <td style="text-align:center;">${data.nfa.metrics.transitions}</td>
+        <td style="text-align:center;">${data.nfa.metrics.execution_steps}</td>
+        <td style="text-align:center;">${data.nfa.accepted ? '✅' : '❌'}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px; color:#ce9178; font-weight:600;">DFA</td>
+        <td style="text-align:center;">${data.dfa.metrics.states}</td>
+        <td style="text-align:center;">${data.dfa.metrics.transitions}</td>
+        <td style="text-align:center;">${data.dfa.metrics.execution_steps}</td>
+        <td style="text-align:center;">${data.dfa.accepted ? '✅' : '❌'}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px; color:#4ec9b0; font-weight:600;">TM</td>
+        <td style="text-align:center;">${data.tm.metrics.states}</td>
+        <td style="text-align:center;">${data.tm.metrics.transitions}</td>
+        <td style="text-align:center;">${data.tm.metrics.execution_steps}</td>
+        <td style="text-align:center;">${data.tm.accepted ? '✅' : '❌'}</td>
+      </tr>
+    `;
+
+    // Visualizing the comparison results
+    // We'll show the DFA as it's usually the most readable for comparison
+    simulator.mode = 'DFA';
+    simulator.nfaData = data.dfa.graph;
+    const layout = simulator.layoutEngine.compute(data.dfa.graph, { xSpacing: 300, ySpacing: 200 });
+    simulator.renderer.draw(data.dfa.graph, layout);
+
+    statusStep.innerText = "Comparison Complete";
+    statusText.innerText = `All models ${data.dfa.accepted ? 'accepted' : 'rejected'} the input. Observe metrics above.`;
+
+  } catch (e) {
+    console.error(e);
+    statusStep.innerText = "Comparison Failed";
+    statusText.innerText = e.message;
+    alert("Comparison failed: " + e.message);
+  }
+};
+
+window.nextCompareStep = () => {
+  // For now, comparison mode focuses on the static complexity metrics 
+  // but we can also step through the DFA simulation
+  simulator.next();
+};
+
+window.prevCompareStep = () => {
+  simulator.prev();
 };
 
 
